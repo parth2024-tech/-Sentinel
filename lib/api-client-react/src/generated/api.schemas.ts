@@ -8,3 +8,24 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface WaitlistEntry {
+  /** Email address to join the waitlist */
+  email: string;
+}
+
+export interface WaitlistResult {
+  success: boolean;
+  message: string;
+  alreadyExists?: boolean;
+}
+
+export interface WaitlistCount {
+  /** Total number of waitlist signups */
+  count: number;
+}
+
+export interface ErrorResponse {
+  error: string;
+  details?: string;
+}
