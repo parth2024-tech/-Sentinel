@@ -10,6 +10,7 @@ import HowItWorks from "@/pages/HowItWorks";
 import WhatItMonitors from "@/pages/WhatItMonitors";
 import FAQ from "@/pages/FAQ";
 import Waitlist from "@/pages/Waitlist";
+import HealthTest from "@/pages/HealthTest";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ function Router() {
           <Route path="/what-it-monitors" component={WhatItMonitors} />
           <Route path="/faq" component={FAQ} />
           <Route path="/waitlist" component={Waitlist} />
+          <Route path="/health-test" component={HealthTest} />
           <Route component={NotFound} />
         </Switch>
       </main>
