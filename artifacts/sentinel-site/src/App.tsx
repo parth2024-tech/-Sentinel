@@ -15,6 +15,10 @@ import SampleReport from "@/pages/SampleReport";
 import WhySentinel from "@/pages/WhySentinel";
 import Compare from "@/pages/Compare";
 import Pricing from "@/pages/Pricing";
+import OEMFailures from "@/pages/OEMFailures";
+import HabitAudit from "@/pages/HabitAudit";
+import RiskCalculator from "@/pages/RiskCalculator";
+import Report from "@/pages/Report";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -36,6 +40,10 @@ function Router() {
           <Route path="/why" component={WhySentinel} />
           <Route path="/compare" component={Compare} />
           <Route path="/pricing" component={Pricing} />
+          <Route path="/oem-failures" component={OEMFailures} />
+          <Route path="/habit-audit" component={HabitAudit} />
+          <Route path="/risk-calculator" component={RiskCalculator} />
+          <Route path="/r/:id" component={Report} />
           <Route component={NotFound} />
         </Switch>
       </main>

@@ -4,10 +4,10 @@ import { Menu, X, Shield } from "lucide-react";
 
 const navLinks = [
   { href: "/why", label: "Why Sentinel" },
-  { href: "/features", label: "Features" },
-  { href: "/how-it-works", label: "How It Works" },
+  { href: "/risk-calculator", label: "Risk Calculator" },
+  { href: "/habit-audit", label: "Habit Audit" },
+  { href: "/health-test", label: "Health Test" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/faq", label: "FAQ" },
 ];
 
 export default function Header() {

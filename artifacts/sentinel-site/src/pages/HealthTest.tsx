@@ -1,5 +1,8 @@
-import { useState, useEffect } from "react";
-import { Terminal, Copy, Download, CheckCheck, Cpu, Activity, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Link, useLocation } from "wouter";
+import { Terminal, Copy, Download, CheckCheck, Cpu, Activity, ChevronDown, ChevronUp, ArrowRight, AlertCircle, Loader2, FileJson } from "lucide-react";
+import { parseReport } from "@/lib/reportSchema";
+import { generateReport, type ReportResult } from "@/lib/reportEngine";
 
 type Brand = "dell" | "lenovo" | "hp";
 
@@ -94,6 +97,14 @@ export default function HealthTest() {
     hp: false,
   });
   const [copied, setCopied] = useState(false);
+
+  // Paste-back parser state
+  const [pasteValue, setPasteValue] = useState("");
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [parsedResult, setParsedResult] = useState<ReportResult | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
+  const pasteRef = useRef<HTMLDivElement>(null);
+  const [, navigate] = useLocation();
 
   const brand = brands.find((b) => b.id === activeBrand)!;
   const scriptContent = scripts[activeBrand];
@@ -331,6 +342,100 @@ export default function HealthTest() {
             anywhere. The output is saved locally to your Desktop as a text
             file. Review the full source code above before running.
           </p>
+        </div>
+      </section>
+
+      {/* ── Paste-back parser ──────────────────────────────────────── */}
+      <section ref={pasteRef} className="px-6 pb-24">
+        <div className="max-w-5xl mx-auto">
+          <div className="rounded-2xl border border-primary/30 bg-primary/3 overflow-hidden">
+
+            {/* Header */}
+            <div className="px-7 py-5 border-b border-primary/20 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                <FileJson className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Step 3 — Parse your output</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Run the <span className="font-mono text-primary">sentinel-collect.ps1</span> script above, then paste the JSON output here. Get a real Sentinel-style report instantly — no install required.
+                </p>
+              </div>
+              <a
+                href={`${import.meta.env.BASE_URL}scripts/sentinel-collect.ps1`}
+                download="sentinel-collect.ps1"
+                className="ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-primary/40 text-primary hover:bg-primary/10 transition-all"
+              >
+                <Download className="w-3 h-3" /> Download collector script
+              </a>
+            </div>
+
+            {/* Paste area */}
+            <div className="p-6 space-y-4">
+              <textarea
+                value={pasteValue}
+                onChange={(e) => { setPasteValue(e.target.value); setParseError(null); setParsedResult(null); }}
+                placeholder={'Paste JSON output here — starts with {"sentinelSchema":1,...}'}
+                rows={6}
+                className="w-full rounded-xl border border-border/50 bg-[#0a0e1a] text-slate-300 placeholder:text-muted-foreground/30 font-mono text-xs px-4 py-3 resize-none focus:outline-none focus:border-primary/60 transition-colors leading-relaxed"
+              />
+
+              {parseError && (
+                <div className="flex items-start gap-3 rounded-lg border border-red-400/25 bg-red-400/5 px-4 py-3">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-400/90 leading-relaxed">{parseError}</p>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    if (!pasteValue.trim()) { setParseError("Paste your script output first."); return; }
+                    setIsParsing(true);
+                    setParseError(null);
+                    setParsedResult(null);
+                    setTimeout(() => {
+                      const { data, error } = parseReport(pasteValue);
+                      if (error || !data) { setParseError(error ?? "Unknown error."); setIsParsing(false); return; }
+                      const result = generateReport(data);
+                      // Store in localStorage and navigate
+                      const id = Math.random().toString(36).slice(2, 10);
+                      try { localStorage.setItem(`sentinel_report_${id}`, JSON.stringify(data)); } catch {}
+                      setIsParsing(false);
+                      navigate(`/r/${id}`);
+                    }, 400);
+                  }}
+                  disabled={isParsing || !pasteValue.trim()}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-background bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed glow-cyan transition-all"
+                >
+                  {isParsing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  {isParsing ? "Parsing…" : "Generate my report"}
+                </button>
+                {pasteValue && (
+                  <button
+                    onClick={() => { setPasteValue(""); setParseError(null); setParsedResult(null); }}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* What you'll get */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                {[
+                  { label: "Overall health score",  detail: "Weighted across battery, thermals, storage, memory, CPU" },
+                  { label: "Component breakdown",   detail: "Per-metric scores with status labels and raw readings" },
+                  { label: "Plain-English findings",detail: "Prioritised by urgency with specific action steps" },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-lg bg-primary/5 border border-primary/15 px-4 py-3">
+                    <div className="text-xs font-semibold text-primary mb-0.5">{item.label}</div>
+                    <div className="text-xs text-muted-foreground leading-relaxed">{item.detail}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </div>

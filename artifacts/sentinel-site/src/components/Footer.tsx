@@ -3,12 +3,15 @@ import { Shield } from "lucide-react";
 
 const links = [
   { href: "/why", label: "Why Sentinel" },
+  { href: "/oem-failures", label: "OEM Failures" },
+  { href: "/compare", label: "Compare Tools" },
   { href: "/features", label: "Features" },
   { href: "/how-it-works", label: "How It Works" },
   { href: "/what-it-monitors", label: "What It Monitors" },
+  { href: "/risk-calculator", label: "Risk Calculator" },
+  { href: "/habit-audit", label: "Habit Audit" },
   { href: "/health-test", label: "Health Test" },
   { href: "/sample-report", label: "Sample Report" },
-  { href: "/compare", label: "Compare" },
   { href: "/pricing", label: "Pricing" },
   { href: "/faq", label: "FAQ" },
   { href: "/waitlist", label: "Join Waitlist" },
