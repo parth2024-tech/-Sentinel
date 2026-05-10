@@ -24,7 +24,6 @@ public class UploaderService
         var rawJson = JsonSerializer.Serialize(report, JsonOptions);
         
         // Match the expected payload format: { pairCode, rawJson: <parsed object> }
-        // For simplicity and to match the API which might take a raw object, we construct an anonymous object.
         var payload = new
         {
             pairCode = pairCode,
@@ -32,10 +31,10 @@ public class UploaderService
         };
 
         var jsonContent = JsonSerializer.Serialize(payload, JsonOptions);
-        var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
         return await UploadWithRetryAsync(async () =>
         {
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
             var response = await _httpClient.PostAsync($"{BaseUrl}/api/pair/push", content);
             if (!response.IsSuccessStatusCode)
             {

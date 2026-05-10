@@ -182,10 +182,49 @@ export default function HealthTest() {
           }
         } catch { /* network blip — keep polling */ }
       }, 3000);
+
+      return code;
     } catch {
       setPairState({ status: "idle" });
+      return null;
     }
   }, [navigate, stopPolling]);
+
+  // Handle Oneshot callback
+  useEffect(() => {
+    const search = window.location.search;
+    if (search.includes("mode=oneshot")) {
+      const params = new URLSearchParams(search);
+      const callback = params.get("callback");
+      
+      setInputMode("pair");
+      try { localStorage.setItem("sentinel_preferred_input", "pair"); } catch {}
+      
+      // We use a small timeout to let the component render and the ref to attach before scrolling
+      setTimeout(() => {
+        if (pasteRef.current) {
+          pasteRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
+
+      // Only start if idle to prevent duplicate requests in React Strict Mode
+      setPairState(prev => {
+        if (prev.status === "idle") {
+          startPairSession().then(code => {
+            if (code && callback) {
+              fetch(callback, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: code,
+                mode: "no-cors"
+              }).catch(() => {});
+            }
+          });
+        }
+        return prev;
+      });
+    }
+  }, [startPairSession]);
 
   // Clean up on unmount
   useEffect(() => () => stopPolling(), [stopPolling]);

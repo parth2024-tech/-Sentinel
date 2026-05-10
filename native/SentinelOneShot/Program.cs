@@ -36,7 +36,7 @@ static class Program
 
                 // 3. Open browser
                 string callbackUrl = $"http://localhost:{port}/code";
-                string targetUrl = $"https://sentinelapp.io/get-started?mode=oneshot&callback={Uri.EscapeDataString(callbackUrl)}";
+                string targetUrl = $"https://sentinelapp.io/health-test?mode=oneshot&callback={Uri.EscapeDataString(callbackUrl)}";
                 OpenBrowser(targetUrl);
 
                 // 4. Wait for pair code

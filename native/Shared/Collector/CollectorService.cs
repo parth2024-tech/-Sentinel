@@ -189,7 +189,7 @@ public class CollectorService
                 var instances = pc.GetInstanceNames();
                 if (instances.Length > 0)
                 {
-                    bool suspectStatic = false;
+                    bool suspectStatic = true;
                     foreach (var instance in instances)
                     {
                         var counter = new PerformanceCounter("Thermal Zone Information", "Temperature", instance);
@@ -197,8 +197,8 @@ public class CollectorService
                         System.Threading.Thread.Sleep(1000);
                         float val2 = counter.NextValue();
 
-                        if (val1 < 295 || val1 > 303) suspectStatic = true;
-                        if (Math.Abs(val1 - val2) < 0.01) suspectStatic = true;
+                        if (Math.Abs(val1 - val2) > 0.01) suspectStatic = false;
+                        if (val1 < 295 || val1 > 303) suspectStatic = false;
 
                         double tempC = Math.Round(val2 - 273.15, 1);
                         zones.Add(new ThermalZone { Name = instance, TempC = tempC });
@@ -222,14 +222,14 @@ public class CollectorService
                     using var searcher2 = new ManagementObjectSearcher(@"root\wmi", "SELECT CurrentTemperature, InstanceName FROM MSAcpi_ThermalZoneTemp");
                     var res2 = searcher2.Get().Cast<ManagementObject>().ToList();
 
-                    bool suspectStatic = false;
+                    bool suspectStatic = true;
                     for (int i = 0; i < res1.Count; i++)
                     {
                         double t1 = Convert.ToDouble(res1[i]["CurrentTemperature"]);
                         double t2 = res2.Count > i ? Convert.ToDouble(res2[i]["CurrentTemperature"]) : t1;
 
                         if (t1 != t2) suspectStatic = false;
-                        if (t1 < 2950 || t1 > 3030) suspectStatic = true;
+                        if (t1 < 2950 || t1 > 3030) suspectStatic = false;
 
                         double tempC = Math.Round((t1 / 10.0) - 273.15, 1);
                         zones.Add(new ThermalZone { Name = res1[i]["InstanceName"]?.ToString() ?? "Zone", TempC = tempC });
@@ -239,6 +239,50 @@ public class CollectorService
                     {
                         source = suspectStatic ? "acpi_static_suspect" : "acpi_wmi";
                     }
+                }
+                catch { }
+            }
+
+            if (zones.Count == 0)
+            {
+                // Tier 3: OpenHardwareMonitor
+                try
+                {
+                    using var searcher = new ManagementObjectSearcher(@"root\OpenHardwareMonitor", "SELECT Name, Value FROM Sensor WHERE SensorType='Temperature'");
+                    var results = searcher.Get().Cast<ManagementObject>().ToList();
+                    var cpuSensors = results.Where(s => s["Name"]?.ToString()?.Contains("CPU") == true).ToList();
+                    var targetSensors = cpuSensors.Count > 0 ? cpuSensors : results;
+
+                    foreach (var obj in targetSensors)
+                    {
+                        string name = obj["Name"]?.ToString() ?? "Unknown";
+                        double tempC = Math.Round(Convert.ToDouble(obj["Value"]), 1);
+                        zones.Add(new ThermalZone { Name = name, TempC = tempC });
+                    }
+
+                    if (zones.Count > 0) source = "ohm";
+                }
+                catch { }
+            }
+
+            if (zones.Count == 0)
+            {
+                // Tier 4: LibreHardwareMonitor
+                try
+                {
+                    using var searcher = new ManagementObjectSearcher(@"root\LibreHardwareMonitor", "SELECT Name, Value FROM Sensor WHERE SensorType='Temperature'");
+                    var results = searcher.Get().Cast<ManagementObject>().ToList();
+                    var cpuSensors = results.Where(s => s["Name"]?.ToString()?.Contains("CPU") == true).ToList();
+                    var targetSensors = cpuSensors.Count > 0 ? cpuSensors : results;
+
+                    foreach (var obj in targetSensors)
+                    {
+                        string name = obj["Name"]?.ToString() ?? "Unknown";
+                        double tempC = Math.Round(Convert.ToDouble(obj["Value"]), 1);
+                        zones.Add(new ThermalZone { Name = name, TempC = tempC });
+                    }
+
+                    if (zones.Count > 0) source = "lhm";
                 }
                 catch { }
             }
@@ -280,9 +324,28 @@ public class CollectorService
                 int? busType = null;
                 if (int.TryParse(obj["BusType"]?.ToString(), out int bt)) busType = bt;
 
-                // StorageReliabilityCounter
+                // FreeSpacePct and StorageReliabilityCounter
                 if (deviceId != null)
                 {
+                    try
+                    {
+                        using var partSearcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", $"SELECT DriveLetter FROM MSFT_Partition WHERE DiskNumber='{deviceId}'");
+                        foreach (var part in partSearcher.Get())
+                        {
+                            string? letter = part["DriveLetter"]?.ToString();
+                            if (!string.IsNullOrWhiteSpace(letter))
+                            {
+                                var drive = new System.IO.DriveInfo(letter);
+                                if (drive.IsReady && drive.TotalSize > 0)
+                                {
+                                    device.FreeSpacePct = Math.Round((double)drive.TotalFreeSpace / drive.TotalSize * 100.0, 1);
+                                    break; // Use the first valid volume found
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+
                     try
                     {
                         using var relSearcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", $"SELECT PowerOnHours, Wear, ReadErrorsUncorrected FROM MSFT_StorageReliabilityCounter WHERE DeviceId='{deviceId}'");
