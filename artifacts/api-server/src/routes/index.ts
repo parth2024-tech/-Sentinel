@@ -5,6 +5,8 @@ import reportsRouter from "./reports";
 import myReportsRouter from "./myReports";
 import devicesRouter from "./devices";
 import pairRouter from "./pair";
+import versionRouter from "./version";
+import downloadsRouter from "./downloads";
 
 const router: IRouter = Router();
 
@@ -14,5 +16,7 @@ router.use("/reports", reportsRouter);
 router.use("/my-reports", myReportsRouter);
 router.use("/devices", devicesRouter);
 router.use("/pair", pairRouter);
+router.use("/version", versionRouter);
+router.use("/downloads", downloadsRouter);
 
 export default router;

@@ -156,7 +156,7 @@ export default function GetStarted() {
                 "Visible in system tray with Pause / Uninstall options",
               ]}
               ctaLabel="Download Sentinel Agent"
-              ctaHref="#agent-download"
+              ctaHref="/api/downloads/latest/setup"
               recommended
               accentClass="bg-primary/10 border-primary/30 text-primary"
               borderClass="border-border/60"
@@ -178,7 +178,7 @@ export default function GetStarted() {
                 "Re-download whenever you want a new scan",
               ]}
               ctaLabel="Download One-Shot Scan"
-              ctaHref="#oneshot-download"
+              ctaHref="/api/downloads/latest/oneshot"
               accentClass="bg-accent/10 border-accent/30 text-accent"
               borderClass="border-border/40"
             />
@@ -265,21 +265,24 @@ export default function GetStarted() {
 
                 <div className="flex flex-col sm:flex-row gap-3">
                   <a
-                    href="#ps-dell"
+                    href="/scripts/sentinel-collect.ps1"
+                    download="sentinel-collect.ps1"
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-card border border-border/60 text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    Dell script (.ps1)
+                    Generic script (.ps1)
                   </a>
                   <a
-                    href="#ps-lenovo"
+                    href="/scripts/lenovo.ps1"
+                    download="sentinel-lenovo-diagnostic.ps1"
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-card border border-border/60 text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Lenovo script (.ps1)
                   </a>
                   <a
-                    href="#ps-hp"
+                    href="/scripts/hp.py"
+                    download="sentinel-hp-diagnostic.py"
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-card border border-border/60 text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />

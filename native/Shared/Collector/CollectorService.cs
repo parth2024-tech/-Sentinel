@@ -1,0 +1,353 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Management;
+using System.Linq;
+
+namespace Sentinel.Shared;
+
+public class CollectorService
+{
+    public static SentinelReport Collect()
+    {
+        var report = new SentinelReport
+        {
+            GeneratedAt = DateTime.UtcNow.ToString("o")
+        };
+
+        CollectSystemAndCpu(report);
+        CollectMemory(report);
+        CollectBattery(report);
+        CollectThermals(report);
+        CollectStorage(report);
+        CollectStartup(report);
+
+        return report;
+    }
+
+    private static void CollectSystemAndCpu(SentinelReport report)
+    {
+        try
+        {
+            using var csSearcher = new ManagementObjectSearcher("SELECT Manufacturer, Model FROM Win32_ComputerSystem");
+            foreach (var obj in csSearcher.Get())
+            {
+                report.System.Manufacturer = obj["Manufacturer"]?.ToString() ?? "";
+                report.System.Model = obj["Model"]?.ToString() ?? "";
+            }
+
+            using var osSearcher = new ManagementObjectSearcher("SELECT Caption, Version FROM Win32_OperatingSystem");
+            foreach (var obj in osSearcher.Get())
+            {
+                report.System.Os = obj["Caption"]?.ToString();
+                report.System.OsVersion = obj["Version"]?.ToString();
+            }
+
+            using var biosSearcher = new ManagementObjectSearcher("SELECT SMBIOSBIOSVersion FROM Win32_BIOS");
+            foreach (var obj in biosSearcher.Get())
+            {
+                report.System.BiosVersion = obj["SMBIOSBIOSVersion"]?.ToString();
+            }
+
+            report.System.Hostname = Environment.MachineName;
+
+            using var procSearcher = new ManagementObjectSearcher("SELECT Name, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed, LoadPercentage FROM Win32_Processor");
+            report.Cpu = new CpuInfo();
+            double totalLoad = 0;
+            int cpuCount = 0;
+
+            foreach (var obj in procSearcher.Get())
+            {
+                if (cpuCount == 0)
+                {
+                    report.Cpu.Name = obj["Name"]?.ToString()?.Trim();
+                    if (int.TryParse(obj["NumberOfCores"]?.ToString(), out int cores)) report.Cpu.Cores = cores;
+                    if (int.TryParse(obj["NumberOfLogicalProcessors"]?.ToString(), out int threads)) report.Cpu.Threads = threads;
+                    if (int.TryParse(obj["MaxClockSpeed"]?.ToString(), out int clock)) report.Cpu.MaxClockMhz = clock;
+                }
+                if (double.TryParse(obj["LoadPercentage"]?.ToString(), out double load))
+                {
+                    totalLoad += load;
+                }
+                cpuCount++;
+            }
+            if (cpuCount > 0)
+            {
+                report.Cpu.AvgLoadPct = Math.Round(totalLoad / cpuCount, 1);
+            }
+        }
+        catch { }
+    }
+
+    private static void CollectMemory(SentinelReport report)
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem");
+            foreach (var obj in searcher.Get())
+            {
+                if (double.TryParse(obj["TotalVisibleMemorySize"]?.ToString(), out double totalKb) &&
+                    double.TryParse(obj["FreePhysicalMemory"]?.ToString(), out double freeKb))
+                {
+                    double totalGb = totalKb / (1024.0 * 1024.0);
+                    double usedPct = ((totalKb - freeKb) / totalKb) * 100.0;
+                    
+                    report.Memory = new MemoryInfo
+                    {
+                        TotalGB = Math.Round(totalGb, 1),
+                        UsedPct = Math.Round(usedPct, 1)
+                    };
+                }
+                break;
+            }
+        }
+        catch { }
+    }
+
+    private static void CollectBattery(SentinelReport report)
+    {
+        try
+        {
+            int? designCap = null;
+            int? fullCap = null;
+            int? cycleCount = null;
+            object? status = null;
+            int? dischargeRateMw = null;
+
+            try
+            {
+                using var battWmi = new ManagementObjectSearcher("SELECT DesignCapacity, FullChargeCapacity, BatteryStatus FROM Win32_Battery");
+                foreach (var obj in battWmi.Get())
+                {
+                    if (int.TryParse(obj["DesignCapacity"]?.ToString(), out int d)) designCap = d;
+                    if (int.TryParse(obj["FullChargeCapacity"]?.ToString(), out int f)) fullCap = f;
+                    if (int.TryParse(obj["BatteryStatus"]?.ToString(), out int s)) status = s;
+                    break;
+                }
+            }
+            catch { }
+
+            try
+            {
+                using var battFull = new ManagementObjectSearcher(@"root\wmi", "SELECT FullChargedCapacity FROM BatteryFullChargedCapacity");
+                foreach (var obj in battFull.Get()) { if (int.TryParse(obj["FullChargedCapacity"]?.ToString(), out int f)) fullCap = f; break; }
+            }
+            catch { }
+
+            try
+            {
+                using var battDesign = new ManagementObjectSearcher(@"root\wmi", "SELECT DesignedCapacity FROM BatteryStaticData");
+                foreach (var obj in battDesign.Get()) { if (int.TryParse(obj["DesignedCapacity"]?.ToString(), out int d)) designCap = d; break; }
+            }
+            catch { }
+
+            try
+            {
+                using var battCycles = new ManagementObjectSearcher(@"root\wmi", "SELECT CycleCount FROM BatteryCycleCount");
+                foreach (var obj in battCycles.Get()) { if (int.TryParse(obj["CycleCount"]?.ToString(), out int c)) cycleCount = c; break; }
+            }
+            catch { }
+
+            try
+            {
+                using var battStatus = new ManagementObjectSearcher(@"root\wmi", "SELECT DischargeRate FROM BatteryStatus");
+                foreach (var obj in battStatus.Get()) { if (int.TryParse(obj["DischargeRate"]?.ToString(), out int dr)) dischargeRateMw = dr; break; }
+            }
+            catch { }
+
+            if (designCap != null || fullCap != null || cycleCount != null || status != null)
+            {
+                report.Battery = new BatteryInfo
+                {
+                    DesignCapacity = designCap,
+                    FullChargeCapacity = fullCap,
+                    CycleCount = cycleCount,
+                    Status = status,
+                    DischargeRateMw = dischargeRateMw
+                };
+
+                if (designCap > 0 && fullCap != null)
+                {
+                    report.Battery.Health = Math.Round(((double)fullCap / designCap.Value) * 100.0, 1);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static void CollectThermals(SentinelReport report)
+    {
+        try
+        {
+            var zones = new List<ThermalZone>();
+            string source = "unavailable";
+
+            // Tier 1: Performance Counter
+            try
+            {
+                var pc = new PerformanceCounterCategory("Thermal Zone Information");
+                var instances = pc.GetInstanceNames();
+                if (instances.Length > 0)
+                {
+                    bool suspectStatic = false;
+                    foreach (var instance in instances)
+                    {
+                        var counter = new PerformanceCounter("Thermal Zone Information", "Temperature", instance);
+                        float val1 = counter.NextValue();
+                        System.Threading.Thread.Sleep(1000);
+                        float val2 = counter.NextValue();
+
+                        if (val1 < 295 || val1 > 303) suspectStatic = true;
+                        if (Math.Abs(val1 - val2) < 0.01) suspectStatic = true;
+
+                        double tempC = Math.Round(val2 - 273.15, 1);
+                        zones.Add(new ThermalZone { Name = instance, TempC = tempC });
+                    }
+                    if (zones.Count > 0)
+                    {
+                        source = suspectStatic ? "acpi_static_suspect" : "performance_counter";
+                    }
+                }
+            }
+            catch { }
+
+            if (zones.Count == 0)
+            {
+                // Tier 2: MSAcpi_ThermalZoneTemp
+                try
+                {
+                    using var searcher1 = new ManagementObjectSearcher(@"root\wmi", "SELECT CurrentTemperature, InstanceName FROM MSAcpi_ThermalZoneTemp");
+                    var res1 = searcher1.Get().Cast<ManagementObject>().ToList();
+                    System.Threading.Thread.Sleep(1000);
+                    using var searcher2 = new ManagementObjectSearcher(@"root\wmi", "SELECT CurrentTemperature, InstanceName FROM MSAcpi_ThermalZoneTemp");
+                    var res2 = searcher2.Get().Cast<ManagementObject>().ToList();
+
+                    bool suspectStatic = false;
+                    for (int i = 0; i < res1.Count; i++)
+                    {
+                        double t1 = Convert.ToDouble(res1[i]["CurrentTemperature"]);
+                        double t2 = res2.Count > i ? Convert.ToDouble(res2[i]["CurrentTemperature"]) : t1;
+
+                        if (t1 != t2) suspectStatic = false;
+                        if (t1 < 2950 || t1 > 3030) suspectStatic = true;
+
+                        double tempC = Math.Round((t1 / 10.0) - 273.15, 1);
+                        zones.Add(new ThermalZone { Name = res1[i]["InstanceName"]?.ToString() ?? "Zone", TempC = tempC });
+                    }
+
+                    if (zones.Count > 0)
+                    {
+                        source = suspectStatic ? "acpi_static_suspect" : "acpi_wmi";
+                    }
+                }
+                catch { }
+            }
+
+            report.Thermals = new ThermalsInfo
+            {
+                Zones = zones,
+                ZoneCount = zones.Count,
+                ThermalSource = source,
+                ThermalSamples = zones.Count
+            };
+
+            if (zones.Count > 0 && source != "unavailable" && source != "acpi_static_suspect")
+            {
+                report.Thermals.MaxTempC = zones.Max(z => z.TempC);
+            }
+        }
+        catch { }
+    }
+
+    private static void CollectStorage(SentinelReport report)
+    {
+        var storageList = new List<StorageDevice>();
+        try
+        {
+            using var physSearcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT DeviceId, FriendlyName, MediaType, Size, BusType FROM MSFT_PhysicalDisk");
+            foreach (var obj in physSearcher.Get())
+            {
+                var device = new StorageDevice
+                {
+                    Model = obj["FriendlyName"]?.ToString(),
+                    DataSource = "unavailable"
+                };
+
+                if (int.TryParse(obj["MediaType"]?.ToString(), out int mt)) device.Type = mt.ToString();
+                if (double.TryParse(obj["Size"]?.ToString(), out double size)) device.TotalGB = Math.Round(size / (1024.0 * 1024.0 * 1024.0), 0);
+
+                string? deviceId = obj["DeviceId"]?.ToString();
+                int? busType = null;
+                if (int.TryParse(obj["BusType"]?.ToString(), out int bt)) busType = bt;
+
+                // StorageReliabilityCounter
+                if (deviceId != null)
+                {
+                    try
+                    {
+                        using var relSearcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", $"SELECT PowerOnHours, Wear, ReadErrorsUncorrected FROM MSFT_StorageReliabilityCounter WHERE DeviceId='{deviceId}'");
+                        foreach (var rel in relSearcher.Get())
+                        {
+                            if (int.TryParse(rel["PowerOnHours"]?.ToString(), out int poh)) device.PowerOnHours = poh;
+                            if (int.TryParse(rel["ReadErrorsUncorrected"]?.ToString(), out int reu)) device.ReallocatedSectors = reu;
+                            
+                            if (int.TryParse(rel["Wear"]?.ToString(), out int wear))
+                            {
+                                if (busType == 17 && wear == 0)
+                                {
+                                    // NVMe Fallback
+                                    if (int.TryParse(deviceId, out int driveNumber))
+                                    {
+                                        var smart = NvmeSmart.GetSmartInfo(driveNumber);
+                                        if (smart != null)
+                                        {
+                                            device.WearLevelPct = smart.PercentageUsed > 100 ? 0 : 100 - smart.PercentageUsed;
+                                            device.DataSource = "nvme_smart_ioctl";
+                                        }
+                                        else
+                                        {
+                                            device.DataSource = "reliability_counter";
+                                            device.WearLevelPct = wear;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    device.DataSource = "reliability_counter";
+                                    device.WearLevelPct = wear;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                storageList.Add(device);
+            }
+        }
+        catch { }
+
+        report.Storage = storageList;
+    }
+
+    private static void CollectStartup(SentinelReport report)
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT LastBootUpTime FROM Win32_OperatingSystem");
+            foreach (var obj in searcher.Get())
+            {
+                string? bootTimeStr = obj["LastBootUpTime"]?.ToString();
+                if (!string.IsNullOrEmpty(bootTimeStr))
+                {
+                    report.Startup = new StartupInfo
+                    {
+                        LastBootTime = ManagementDateTimeConverter.ToDateTime(bootTimeStr).ToString("o")
+                    };
+                }
+                break;
+            }
+        }
+        catch { }
+    }
+}

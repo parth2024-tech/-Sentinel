@@ -116,3 +116,19 @@ pnpm --filter @workspace/db run push   # Apply schema changes to DB
 - **Magic-link auth** — No passwords. Email initiates a 15-minute token; successful claim sets a 30-day session cookie.
 - **Device pairing** — `POST /api/devices/pair` → short-lived `pairToken` → `POST /api/devices/claim` with email → persistent `deviceToken`. Reports submitted with `Authorization: Bearer <deviceToken>` are auto-claimed.
 - **Library bundling** — `@workspace/report-engine` is bundled into the backend via `esbuild` and resolved in the frontend via Vite workspace symlinking.
+
+## Remote Testing & Pairing
+
+To test the Pairing System with a friend's machine (or a machine on a different network):
+
+1. **Expose your local server**: Use a tool like **ngrok** to create a public tunnel.
+   ```bash
+   ngrok http 3001 # Expose the frontend
+   ngrok http 5000 # Expose the backend
+   ```
+2. **Update script URLs**: Open the diagnostic script (e.g., `dell.ps1`) and change `$SENTINEL_BASE_URL` to your **Backend ngrok URL**.
+3. **Friend's Laptop**:
+   - Have them open your **Frontend ngrok URL** in their browser.
+   - Go to Step 3, generate a **Pair Code**.
+   - Run the script on their machine: `.\dell.ps1 -PairCode YOUR_CODE`.
+4. **Instant Sync**: Your browser will automatically detect the upload via the tunnel and show the report.

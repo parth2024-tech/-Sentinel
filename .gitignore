@@ -47,3 +47,21 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Native build outputs
+artifacts/bin/
+native/**/bin/
+native/**/obj/
+
+# Code signing — NEVER commit certificates or keys
+*.pfx
+*.p12
+*.cer
+*.key
+*.pem
+sentinel-signing.*
+
+# Secrets and logs
+.env
+*.log
+

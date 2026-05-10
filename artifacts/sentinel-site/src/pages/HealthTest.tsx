@@ -532,8 +532,23 @@ export default function HealthTest() {
                     {/* Code display */}
                     <div className="text-center">
                       <div className="text-xs font-mono text-muted-foreground/60 uppercase tracking-widest mb-2">Your pair code</div>
-                      <div className="inline-block rounded-2xl border border-primary/40 bg-primary/5 px-8 py-4">
-                        <span className="font-mono text-4xl font-bold tracking-[0.15em] text-primary">{pairState.code}</span>
+                      <div className="inline-flex items-center gap-3">
+                        <div className="rounded-2xl border border-primary/40 bg-primary/5 px-8 py-4">
+                          <span className="font-mono text-4xl font-bold tracking-[0.15em] text-primary select-all">{pairState.code}</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(pairState.code).then(() => {
+                              setCopied(true);
+                              setTimeout(() => setCopied(false), 2000);
+                            });
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-medium border border-primary/30 text-primary hover:bg-primary/10 transition-all"
+                          title="Copy pair code"
+                        >
+                          {copied ? <CheckCheck className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                          {copied ? "Copied!" : "Copy"}
+                        </button>
                       </div>
                       {/* Countdown */}
                       <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground/60">
@@ -545,12 +560,18 @@ export default function HealthTest() {
                     </div>
 
                     {/* Script command */}
-                    <div className="rounded-xl bg-[#0d1117] border border-border/40 px-5 py-4">
+                    <div className="rounded-xl bg-[#0d1117] border border-border/40 px-5 py-4 space-y-3">
                       <div className="text-xs text-muted-foreground/60 mb-2 uppercase tracking-wide font-mono">Run this command</div>
                       <div className="font-mono text-sm text-slate-300">
                         {activeBrand === "hp"
                           ? <><span className="text-cyan-400">python</span> sentinel-hp-diagnostic.py <span className="text-amber-400">--pair-code {pairState.code}</span></>
                           : <><span className="text-cyan-400">.\{brand.filename}</span> <span className="text-amber-400">-PairCode {pairState.code}</span></>}
+                      </div>
+                      <div className="border-t border-border/20 pt-3">
+                        <div className="text-xs text-muted-foreground/40 mb-1.5">Or use the generic collector script:</div>
+                        <div className="font-mono text-sm text-slate-300">
+                          <span className="text-cyan-400">.\sentinel-collect.ps1</span> <span className="text-amber-400">-PairCode {pairState.code}</span>
+                        </div>
                       </div>
                     </div>
 
