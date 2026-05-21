@@ -1,256 +1,244 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, Send, Cpu, Battery, HardDrive, Thermometer, Wifi, Zap, Loader2, Sparkles, RotateCcw, ChevronRight } from "lucide-react";
-import { Link } from "wouter";
+import { MessageCircle, Send, Cpu, Battery, HardDrive, Thermometer, Sparkles, RotateCcw, Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react";
+import { useSearch } from "wouter";
 import AnimateIn from "@/components/AnimateIn";
 
 // ── Knowledge Base ──────────────────────────────────────────────────────────
 
+interface Step {
+  type: "action" | "decision";
+  text: string;
+  code?: string;
+}
+
 interface Solution {
   title: string;
-  steps: string[];
+  steps: Step[];
   urgency: "low" | "medium" | "high";
   component: string;
-  relatedTip?: string;
 }
 
 interface KBEntry {
+  topic: string; // Used for direct routing from Report.tsx
   keywords: string[];
   solution: Solution;
 }
 
 const KB: KBEntry[] = [
   {
-    keywords: ["battery", "drain", "fast", "dies", "quick", "lasting", "charge", "life", "short", "hours"],
+    topic: "battery",
+    keywords: ["battery", "drain", "wear", "capacity", "cycle", "cycles", "charge"],
     solution: {
-      title: "Battery draining faster than expected",
-      steps: [
-        "Open Settings → System → Power & battery and check which apps consume the most power.",
-        "Reduce screen brightness to 60-70% — display is the #1 battery consumer.",
-        "Disable background apps: Settings → Apps → Installed apps → toggle off background activity for non-essential apps.",
-        "Switch power mode to 'Best power efficiency' when on battery.",
-        "Check battery health: open CMD as admin and run `powercfg /batteryreport`. Look at 'Design Capacity' vs 'Full Charge Capacity'.",
-        "If capacity is below 70%, the battery is degraded and may need replacement.",
-      ],
-      urgency: "medium",
+      title: "Battery degradation or unexpected drain",
       component: "Battery",
-      relatedTip: "Run Sentinel's Health Test to get an exact battery wear percentage and cycle count.",
+      urgency: "medium",
+      steps: [
+        {
+          type: "action",
+          text: "First, generate a deep battery diagnostic report natively in Windows to verify the raw sensor data.",
+          code: "powercfg /batteryreport /output \"C:\\battery-report.html\"",
+        },
+        {
+          type: "action",
+          text: "Open the generated report by navigating to **C:\\battery-report.html** in your browser. Compare 'Design Capacity' against 'Full Charge Capacity'.",
+        },
+        {
+          type: "action",
+          text: "If the capacity gap is primarily due to software drain, check which apps are consuming power by navigating to **Settings → System → Power & battery → Battery usage**.",
+        },
+        {
+          type: "decision",
+          text: "Is the Full Charge Capacity less than 60% of Design Capacity? If yes, software fixes won't help — physical replacement is required. If no, ensure 'Battery Saver' is engaging at 20% to prevent deep discharges.",
+        },
+      ],
     },
   },
   {
-    keywords: ["overheat", "hot", "heat", "thermal", "temperature", "warm", "burn", "fan", "loud", "throttle", "throttling"],
+    topic: "thermal",
+    keywords: ["overheat", "hot", "heat", "thermal", "temperature", "fan", "loud", "throttle", "throttling"],
     solution: {
-      title: "Laptop overheating or running hot",
-      steps: [
-        "Ensure vents are not blocked — never use the laptop on a bed, pillow, or soft surface.",
-        "Use a laptop stand or cooling pad to improve airflow (can reduce temps by 10-15°C).",
-        "Clean dust from vents using compressed air — hold the can 6 inches away and spray in short bursts.",
-        "Check Task Manager (Ctrl+Shift+Esc) → Processes tab for apps using high CPU. End unnecessary ones.",
-        "Update your BIOS from the manufacturer's website — newer versions often improve thermal management.",
-        "If the laptop is 2+ years old, consider having a technician replace the thermal paste.",
-      ],
-      urgency: "high",
+      title: "Elevated thermals & processor throttling",
       component: "Thermals",
-      relatedTip: "Sustained temps above 85°C accelerate component degradation. Sentinel tracks your thermal patterns over time.",
-    },
-  },
-  {
-    keywords: ["slow", "lag", "sluggish", "freeze", "freezing", "hang", "unresponsive", "stuck", "loading", "performance"],
-    solution: {
-      title: "Laptop running slow or freezing",
-      steps: [
-        "Press Ctrl+Shift+Esc to open Task Manager. Check if any process is using >80% CPU or memory.",
-        "Check disk usage: if it's at 100%, your SSD/HDD may be the bottleneck.",
-        "Free up storage — keep at least 15-20% of your drive free. Run Disk Cleanup from the Start menu.",
-        "Disable startup programs: Task Manager → Startup tab → disable non-essential items.",
-        "Run Windows Update to ensure you have the latest performance patches.",
-        "If you have an HDD (not SSD), upgrading to an SSD is the single biggest speed improvement you can make.",
-      ],
-      urgency: "medium",
-      component: "Storage",
-    },
-  },
-  {
-    keywords: ["blue screen", "bsod", "crash", "restart", "reboot", "unexpected", "shutdown", "stop code", "dump"],
-    solution: {
-      title: "Blue Screen of Death (BSOD) crashes",
-      steps: [
-        "Note the stop code displayed on the blue screen (e.g., IRQL_NOT_LESS_OR_EQUAL).",
-        "Run Windows Memory Diagnostic: search 'Windows Memory Diagnostic' in Start and restart to test RAM.",
-        "Update all drivers — especially GPU and chipset. Visit your manufacturer's support page.",
-        "Open CMD as admin and run: `sfc /scannow` to check for corrupted system files.",
-        "Then run: `DISM /Online /Cleanup-Image /RestoreHealth` to repair the Windows image.",
-        "Check Event Viewer (eventvwr.msc) → Windows Logs → System for critical errors around the crash time.",
-        "If crashes persist, run `chkdsk /f /r` on your boot drive (requires a restart).",
-      ],
       urgency: "high",
+      steps: [
+        {
+          type: "action",
+          text: "Thermal throttling occurs when the CPU hits its TjMax (usually 95-100°C). First, check if a rogue background process is keeping the CPU pegged at 100%. Open **Task Manager (Ctrl+Shift+Esc) → Details tab** and sort by CPU.",
+        },
+        {
+          type: "action",
+          text: "Ensure Windows cooling policy is set to active (increases fan speed before slowing CPU):",
+          code: "powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCSYSMAXPOL 100",
+        },
+        {
+          type: "action",
+          text: "Physically inspect the bottom and side intake vents. If you use the laptop on a bed or soft surface, intake is blocked. Elevate the rear of the laptop by 1 inch.",
+        },
+        {
+          type: "decision",
+          text: "Do the fans sound like they are spinning up? If the laptop is hot but silent, the fan connector may be loose or the fan motor is dead. If the fans are loud but the laptop is still throttling, you need to clean the heat sink fins with compressed air.",
+        },
+      ],
+    },
+  },
+  {
+    topic: "storage",
+    keywords: ["storage", "wear", "nvme", "health", "ssd", "reallocated", "failing", "drive", "smart", "space"],
+    solution: {
+      title: "Storage degradation or critical wear level",
+      component: "Storage",
+      urgency: "high",
+      steps: [
+        {
+          type: "action",
+          text: "IMMEDIATE ACTION: A degraded SSD can fail without further warning. Back up your critical files to OneDrive, Google Drive, or an external disk right now.",
+        },
+        {
+          type: "action",
+          text: "Check if Windows recognizes NTFS file system errors using the built-in repair tool. Open an Administrator PowerShell and run:",
+          code: "chkdsk C: /f /r /x",
+        },
+        {
+          type: "action",
+          text: "Check exactly how much free space remains. Navigate to **Settings → System → Storage**. SSDs use 'wear leveling' to spread writes across empty blocks. You must keep at least 15% of your drive completely empty to prevent accelerated wear.",
+        },
+        {
+          type: "decision",
+          text: "Are you seeing 'Reallocated Sectors' in your report? If yes, the drive is actively finding dead flash memory cells and mapping around them. The drive is dying and must be replaced. If wear level is just high (e.g. 80% used), the drive is healthy but old.",
+        },
+      ],
+    },
+  },
+  {
+    topic: "cpu",
+    keywords: ["cpu", "slow", "load", "lag", "sluggish", "freeze", "freezing", "hang", "bsod", "crash"],
+    solution: {
+      title: "High CPU load or system instability",
       component: "CPU",
-      relatedTip: "Frequent BSODs can indicate failing RAM or storage. Sentinel's diagnostic script checks both.",
-    },
-  },
-  {
-    keywords: ["wifi", "internet", "disconnect", "network", "connection", "drop", "slow internet", "no wifi", "cant connect"],
-    solution: {
-      title: "Wi-Fi disconnecting or unstable",
-      steps: [
-        "Restart your router by unplugging it for 30 seconds, then plugging it back in.",
-        "Forget and reconnect: Settings → Network → Wi-Fi → click your network → Forget → reconnect.",
-        "Update the Wi-Fi driver: Device Manager → Network adapters → right-click your adapter → Update driver.",
-        "Disable power saving for the adapter: Device Manager → Network adapters → Properties → Power Management → uncheck 'Allow the computer to turn off this device'.",
-        "Reset network stack: open CMD as admin and run `netsh winsock reset` then `netsh int ip reset`, then restart.",
-        "If on 5GHz, try switching to 2.4GHz (better range) or vice versa (less congestion).",
-      ],
       urgency: "medium",
-      component: "Network",
+      steps: [
+        {
+          type: "action",
+          text: "If your CPU is constantly under load, check for corrupted Windows system files which often cause the 'System' process to spike. Open an Administrator PowerShell and run:",
+          code: "sfc /scannow",
+        },
+        {
+          type: "action",
+          text: "If SFC finds unrepairable files, restore the Windows image using DISM:",
+          code: "DISM /Online /Cleanup-Image /RestoreHealth",
+        },
+        {
+          type: "action",
+          text: "Check if the crashes/sluggishness are caused by a fast-startup hibernation issue. Disable Fast Startup by navigating to **Control Panel → Power Options → Choose what the power buttons do → uncheck Turn on fast startup**.",
+        },
+        {
+          type: "decision",
+          text: "Did the SFC scan find and fix integrity violations? If yes, restart your machine and observe if the sluggishness is resolved. If no, your instability may be hardware-induced (check thermals).",
+        },
+      ],
     },
   },
   {
-    keywords: ["storage", "disk", "space", "full", "ssd", "hdd", "drive", "capacity", "cleanup", "gb"],
+    topic: "memory",
+    keywords: ["ram", "memory", "usage", "leak", "high memory", "out of memory", "page", "faults"],
     solution: {
-      title: "Running out of storage space",
-      steps: [
-        "Run Disk Cleanup: search it in Start, select your drive, check all boxes, and click 'Clean up system files'.",
-        "Empty the Recycle Bin — deleted files still take up space until you empty it.",
-        "Check for large files: Settings → System → Storage → click 'Temporary files' and clean them.",
-        "Move large folders (Downloads, Videos, Photos) to an external drive or cloud storage.",
-        "Uninstall unused applications: Settings → Apps → Installed apps → sort by size.",
-        "SSDs need 10-15% free space to maintain performance and longevity. Below this, write amplification increases wear.",
-      ],
-      urgency: "medium",
-      component: "Storage",
-      relatedTip: "Sentinel monitors your SSD wear level and warns you before endurance limits are reached.",
-    },
-  },
-  {
-    keywords: ["screen", "display", "flicker", "black", "blank", "dim", "bright", "resolution", "monitor", "graphics", "gpu"],
-    solution: {
-      title: "Display issues (flickering, black screen, artifacts)",
-      steps: [
-        "Update your GPU driver: visit nvidia.com/drivers or amd.com/drivers for the latest version.",
-        "Try a different refresh rate: Settings → Display → Advanced display → choose a different rate.",
-        "If screen flickers, check if it stops in Safe Mode (hold Shift while clicking Restart → Troubleshoot → Safe Mode). If it stops, it's a driver issue.",
-        "For external monitor issues: try a different cable (HDMI/DisplayPort), and check the cable is fully seated.",
-        "Reset display settings: Win+Ctrl+Shift+B to restart the graphics driver.",
-        "If you see artifacts (visual glitches), the GPU may be overheating — check thermals.",
-      ],
-      urgency: "medium",
-      component: "GPU",
-    },
-  },
-  {
-    keywords: ["keyboard", "key", "type", "typing", "stuck", "repeat", "not working", "touchpad", "trackpad", "mouse", "click"],
-    solution: {
-      title: "Keyboard or touchpad not responding correctly",
-      steps: [
-        "Restart the laptop — many input issues are resolved by a simple reboot.",
-        "Check for debris under keys — use compressed air to clean between the keys.",
-        "Update the input driver: Device Manager → Keyboards (or Mice) → right-click → Update driver.",
-        "For touchpad: Settings → Bluetooth & devices → Touchpad → ensure it's enabled and check sensitivity.",
-        "If specific keys are stuck, gently pry the keycap off and clean underneath with isopropyl alcohol.",
-        "For external keyboards/mice, try a different USB port or re-pair Bluetooth.",
-      ],
-      urgency: "low",
-      component: "Input",
-    },
-  },
-  {
-    keywords: ["sound", "audio", "speaker", "headphone", "volume", "mute", "no sound", "crackling", "static"],
-    solution: {
-      title: "Audio problems (no sound, crackling, static)",
-      steps: [
-        "Check volume isn't muted: click the speaker icon in the taskbar and verify volume level.",
-        "Right-click the speaker icon → Sound settings → ensure the correct output device is selected.",
-        "Run the audio troubleshooter: Settings → System → Troubleshoot → Other troubleshooters → Playing Audio.",
-        "Update audio driver: Device Manager → Sound → right-click your audio device → Update driver.",
-        "If you hear crackling, try changing the audio format: right-click speaker icon → Sound settings → your device → Properties → change sample rate to 24-bit, 48000 Hz.",
-        "Restart Windows Audio service: Win+R → services.msc → find 'Windows Audio' → right-click → Restart.",
-      ],
-      urgency: "low",
-      component: "Audio",
-    },
-  },
-  {
-    keywords: ["boot", "startup", "start", "turn on", "power", "wont start", "no boot", "black screen on startup", "bios"],
-    solution: {
-      title: "Laptop won't boot or start properly",
-      steps: [
-        "Hard reset: hold the power button for 15 seconds to force shutdown, wait 30 seconds, then try again.",
-        "If plugged in, try removing the charger and holding power for 30 seconds to drain residual charge.",
-        "Listen for beeps or check for blinking LEDs — these are diagnostic codes (check your manufacturer's site).",
-        "Try booting into Safe Mode: hold Shift while clicking Restart → Troubleshoot → Startup Settings → Safe Mode.",
-        "If you see the manufacturer logo but Windows doesn't load, try Automatic Repair: restart 3 times during boot to trigger it.",
-        "Check if an external USB drive is plugged in — remove it, as the BIOS may be trying to boot from it.",
-        "If nothing appears on screen at all, try connecting an external monitor to check if it's a display issue vs a boot issue.",
-      ],
-      urgency: "high",
-      component: "System",
-    },
-  },
-  {
-    keywords: ["update", "windows update", "failed", "error", "install", "pending", "stuck update"],
-    solution: {
-      title: "Windows Update failing or stuck",
-      steps: [
-        "Run the Windows Update troubleshooter: Settings → System → Troubleshoot → Other troubleshooters → Windows Update.",
-        "Clear the update cache: open CMD as admin, run `net stop wuauserv`, then `del /f /s /q C:\\Windows\\SoftwareDistribution\\*`, then `net start wuauserv`.",
-        "Ensure you have at least 20GB free space — updates need room to download and install.",
-        "Try installing updates manually from the Microsoft Update Catalog (catalog.update.microsoft.com).",
-        "If stuck at a percentage, leave it for at least 2 hours before force-restarting — some updates are slow.",
-        "Run `sfc /scannow` and `DISM /Online /Cleanup-Image /RestoreHealth` to fix corrupted components.",
-      ],
-      urgency: "medium",
-      component: "System",
-    },
-  },
-  {
-    keywords: ["ram", "memory", "usage", "high memory", "out of memory", "16gb", "8gb", "4gb", "upgrade"],
-    solution: {
-      title: "High memory usage or running out of RAM",
-      steps: [
-        "Open Task Manager (Ctrl+Shift+Esc) → Memory column to identify which apps use the most RAM.",
-        "Close unnecessary browser tabs — each Chrome tab can use 100-300MB of RAM.",
-        "Disable startup programs that run in the background: Task Manager → Startup tab.",
-        "Check for memory leaks: if a process keeps growing in memory over time, restart it or update the app.",
-        "Adjust virtual memory: Settings → System → About → Advanced system settings → Performance → Advanced → Virtual Memory → set to system managed.",
-        "If you consistently use >85% RAM, consider upgrading — 16GB is the recommended minimum for productivity work in 2026.",
-      ],
-      urgency: "medium",
+      title: "Memory pressure and page faults",
       component: "Memory",
-      relatedTip: "Sentinel's memory diagnostic detects early signs of RAM module degradation and unusual pressure patterns.",
+      urgency: "medium",
+      steps: [
+        {
+          type: "action",
+          text: "When physical RAM is full, Windows relies on the page file (using the SSD as slow RAM). High page faults per second indicates severe memory starvation. First, check your startup apps by navigating to **Settings → Apps → Startup** and disabling everything non-essential.",
+        },
+        {
+          type: "action",
+          text: "Verify that Windows is managing your page file correctly. Do not manually restrict its size. Open PowerShell and check the current page file usage:",
+          code: "Get-WmiObject Win32_PageFileUsage | Select-Object Name, AllocatedBaseSize",
+        },
+        {
+          type: "action",
+          text: "If you suspect a memory leak (RAM fills up over days of uptime), restart your computer at least once a week.",
+        },
+        {
+          type: "decision",
+          text: "Is your baseline memory usage above 85% even with only 2-3 browser tabs open? If yes, your workload exceeds your hardware capacity — an immediate RAM upgrade is the only permanent fix.",
+        },
+      ],
     },
-  },
+  }
 ];
 
-// ── Quick issue buttons ─────────────────────────────────────────────────────
+// ── UI Components ───────────────────────────────────────────────────────────
 
-const QUICK_ISSUES = [
-  { label: "Battery draining fast", icon: Battery, query: "My battery drains very fast" },
-  { label: "Laptop overheating", icon: Thermometer, query: "My laptop gets very hot" },
-  { label: "Running slow", icon: Cpu, query: "My laptop is very slow and laggy" },
-  { label: "Wi-Fi dropping", icon: Wifi, query: "My wifi keeps disconnecting" },
-  { label: "Storage full", icon: HardDrive, query: "I'm running out of disk space" },
-  { label: "Won't turn on", icon: Zap, query: "My laptop won't start or boot" },
-];
+function CopyableCode({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
 
-// ── Matching engine ─────────────────────────────────────────────────────────
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-function findSolutions(query: string): Solution[] {
-  const lower = query.toLowerCase();
-  const words = lower.split(/\s+/);
+  return (
+    <div className="relative mt-2 mb-3 bg-[#0a0e1a] border border-primary/20 rounded-lg overflow-hidden group">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-primary/10 border-b border-primary/20">
+        <span className="text-[10px] font-mono text-primary/70 uppercase tracking-widest">PowerShell / Command Prompt</span>
+        <button 
+          onClick={handleCopy}
+          className="text-primary/60 hover:text-primary transition-colors flex items-center gap-1 text-[10px] font-mono uppercase"
+        >
+          {copied ? <><Check className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
+        </button>
+      </div>
+      <div className="p-3 text-xs font-mono text-cyan-400 overflow-x-auto whitespace-pre">
+        {code}
+      </div>
+    </div>
+  );
+}
 
-  const scored = KB.map((entry) => {
-    let score = 0;
-    for (const kw of entry.keywords) {
-      if (lower.includes(kw)) score += 3;
-      for (const w of words) {
-        if (w.length > 2 && kw.startsWith(w)) score += 1;
-      }
+function renderTextWithBoldPaths(text: string) {
+  // Bold text surrounded by ** **
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i} className="text-foreground font-semibold px-1.5 py-0.5 rounded bg-muted/20 mx-0.5">{part.slice(2, -2)}</strong>;
     }
-    return { solution: entry.solution, score };
-  })
-    .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score);
+    return <span key={i}>{part}</span>;
+  });
+}
 
-  return scored.slice(0, 3).map((s) => s.solution);
+function FeedbackWidget({ messageId }: { messageId: number }) {
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
+  if (feedback) {
+    return (
+      <div className="flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-medium w-fit">
+        <Check className="w-3.5 h-3.5" />
+        Thanks for the feedback. This helps improve the knowledge base.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border/40">
+      <span className="text-xs text-muted-foreground">Did this resolve your issue?</span>
+      <div className="flex items-center gap-2">
+        <button 
+          onClick={() => setFeedback("up")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-card border border-border/60 hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-all text-xs text-muted-foreground"
+        >
+          <ThumbsUp className="w-3 h-3" /> Yes
+        </button>
+        <button 
+          onClick={() => setFeedback("down")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-card border border-border/60 hover:bg-red-400/10 hover:text-red-400 hover:border-red-400/40 transition-all text-xs text-muted-foreground"
+        >
+          <ThumbsDown className="w-3 h-3" /> No
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── Message types ───────────────────────────────────────────────────────────
@@ -260,32 +248,75 @@ interface Message {
   role: "user" | "assistant";
   text?: string;
   solutions?: Solution[];
-  timestamp: Date;
 }
 
 const URGENCY_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  low: { bg: "bg-cyan-500/10 border-cyan-500/30", text: "text-cyan-400", label: "Low" },
-  medium: { bg: "bg-amber-500/10 border-amber-500/30", text: "text-amber-400", label: "Medium" },
-  high: { bg: "bg-red-500/10 border-red-500/30", text: "text-red-400", label: "High" },
+  low: { bg: "bg-cyan-500/10 border-cyan-500/30", text: "text-cyan-400", label: "Low Urgency" },
+  medium: { bg: "bg-amber-500/10 border-amber-500/30", text: "text-amber-400", label: "Medium Urgency" },
+  high: { bg: "bg-red-500/10 border-red-500/30", text: "text-red-400", label: "High Urgency" },
 };
 
-// ── Component ───────────────────────────────────────────────────────────────
+// ── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Troubleshoot() {
+  const searchString = useSearch();
+  const searchParams = new URLSearchParams(searchString);
+  const topicParam = searchParams.get("topic");
+  const titleParam = searchParams.get("title");
+
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  let msgId = useRef(0);
+  const msgId = useRef(0);
+
+  // Pre-load context if arriving from a report finding
+  useEffect(() => {
+    if (topicParam && messages.length === 0) {
+      const entry = KB.find(k => k.topic === topicParam);
+      if (entry) {
+        setMessages([
+          {
+            id: ++msgId.current,
+            role: "assistant",
+            text: `You arrived here because your report flagged an issue: **${titleParam || entry.solution.title}**. Here are the relevant diagnostic steps.`,
+            solutions: [entry.solution]
+          }
+        ]);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topicParam, titleParam]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isTyping]);
 
+  function findSolutions(query: string): Solution[] {
+    const lower = query.toLowerCase();
+    const words = lower.split(/\\s+/);
+
+    const scored = KB.map((entry) => {
+      let score = 0;
+      if (lower.includes(entry.topic)) score += 5;
+      for (const kw of entry.keywords) {
+        if (lower.includes(kw)) score += 3;
+        for (const w of words) {
+          if (w.length > 2 && kw.startsWith(w)) score += 1;
+        }
+      }
+      return { solution: entry.solution, score };
+    })
+      .filter((s) => s.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    return scored.slice(0, 2).map((s) => s.solution);
+  }
+
   function handleSubmit(query: string) {
     if (!query.trim()) return;
-    const userMsg: Message = { id: ++msgId.current, role: "user", text: query, timestamp: new Date() };
+    const userMsg: Message = { id: ++msgId.current, role: "user", text: query };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsTyping(true);
@@ -296,10 +327,9 @@ export default function Troubleshoot() {
         id: ++msgId.current,
         role: "assistant",
         text: solutions.length === 0
-          ? "I couldn't find a specific match for that issue. Try describing the problem differently, or use one of the quick-issue buttons below. For a comprehensive hardware check, run our free diagnostic script on the Health Test page."
+          ? "I couldn't find a specific match for that issue in our diagnostic knowledge base. Try describing the problem using core component names (battery, thermals, storage, cpu, memory)."
           : undefined,
         solutions: solutions.length > 0 ? solutions : undefined,
-        timestamp: new Date(),
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setIsTyping(false);
@@ -316,14 +346,14 @@ export default function Troubleshoot() {
           <div className="relative max-w-3xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-primary text-xs font-mono mb-5">
               <Sparkles className="w-3.5 h-3.5" />
-              INTELLIGENT ASSISTANT
+              INTELLIGENT TROUBLESHOOTER
             </div>
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-              Describe your problem.{" "}
-              <span className="gradient-text">Get the fix.</span>
+              Diagnostic steps mapped to{" "}
+              <span className="gradient-text">exact failure modes.</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              No more digging through forums. Describe your laptop issue in plain English and get step-by-step solutions instantly.
+              Clear pass/fail decision points, copyable CLI commands, and exact Windows navigation paths. No more digging through forums.
             </p>
           </div>
         </AnimateIn>
@@ -331,29 +361,34 @@ export default function Troubleshoot() {
 
       {/* Chat area */}
       <section className="px-6 py-8">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <AnimateIn delay={0.05}>
-            <div className="rounded-2xl border border-border/60 bg-card/40 overflow-hidden shadow-xl flex flex-col" style={{ height: "min(70vh, 620px)" }}>
+            <div className="rounded-2xl border border-border/60 bg-card/40 overflow-hidden shadow-xl flex flex-col" style={{ height: "min(75vh, 700px)" }}>
  
               {/* Messages */}
-              <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6">
                 {messages.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full gap-6 py-8">
                     <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center glow-cyan">
                       <MessageCircle className="w-7 h-7 text-primary" />
                     </div>
-                    <div className="text-center">
-                      <p className="text-sm font-medium text-foreground mb-1">What's wrong with your laptop?</p>
-                      <p className="text-xs text-muted-foreground">Describe your issue or pick a common problem below</p>
+                    <div className="text-center max-w-md">
+                      <p className="text-sm font-medium text-foreground mb-2">What issue are you troubleshooting?</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">Select a component below, or type your specific issue in the box (e.g. "My SSD wear level is high").</p>
                     </div>
-                    <div className="flex flex-wrap justify-center gap-2 max-w-lg">
-                      {QUICK_ISSUES.map((q) => (
+                    <div className="flex flex-wrap justify-center gap-3 mt-2">
+                      {[
+                        { label: "Battery Drain", icon: Battery, query: "battery wear or drain" },
+                        { label: "High Thermals", icon: Thermometer, query: "high thermals and overheating" },
+                        { label: "Storage Wear", icon: HardDrive, query: "storage wear and degradation" },
+                        { label: "CPU Instability", icon: Cpu, query: "cpu throttling and instability" },
+                      ].map((q) => (
                         <button
                           key={q.label}
                           onClick={() => handleSubmit(q.query)}
-                          className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-border/50 text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all"
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border/50 text-sm font-medium text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all"
                         >
-                          <q.icon className="w-3.5 h-3.5" />
+                          <q.icon className="w-4 h-4" />
                           {q.label}
                         </button>
                       ))}
@@ -364,66 +399,52 @@ export default function Troubleshoot() {
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   {msg.role === "user" ? (
-                    <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-br-md bg-primary/15 border border-primary/30 text-sm text-foreground">
+                    <div className="max-w-[80%] px-5 py-3.5 rounded-2xl rounded-br-md bg-primary/15 border border-primary/30 text-sm text-foreground">
                       {msg.text}
                     </div>
                   ) : (
-                    <div className="max-w-[90%] space-y-3">
+                    <div className="max-w-full md:max-w-[90%] space-y-4 w-full">
                       {msg.text && (
-                        <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-card border border-border/50 text-sm text-muted-foreground leading-relaxed">
-                          {msg.text}
+                        <div className="px-5 py-4 rounded-2xl rounded-bl-md bg-card border border-border/50 text-sm text-muted-foreground leading-relaxed">
+                          {renderTextWithBoldPaths(msg.text)}
                         </div>
                       )}
+                      
                       {msg.solutions?.map((sol, i) => {
                         const urg = URGENCY_COLORS[sol.urgency];
                         return (
-                          <div key={i} className="rounded-xl border border-border/50 bg-card/80 overflow-hidden">
-                            <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono text-muted-foreground/50 bg-muted/20 px-1.5 py-0.5 rounded">{sol.component}</span>
-                                <h3 className="text-sm font-semibold text-foreground">{sol.title}</h3>
+                          <div key={i} className="rounded-2xl border border-border/50 bg-card/60 overflow-hidden shadow-sm">
+                            <div className="px-5 md:px-6 py-4 border-b border-border/40 flex items-center justify-between gap-4 flex-wrap bg-background/40">
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs font-mono font-bold text-muted-foreground/60 bg-muted/30 px-2 py-1 rounded tracking-wide">{sol.component}</span>
+                                <h3 className="text-base font-bold text-foreground">{sol.title}</h3>
                               </div>
-                              <span className={`text-xs font-mono px-2 py-0.5 rounded-full border ${urg.bg} ${urg.text}`}>
+                              <span className={`text-xs font-mono px-2.5 py-1 rounded-full border flex items-center gap-1.5 ${urg.bg} ${urg.text}`}>
+                                <div className={`w-1.5 h-1.5 rounded-full ${urg.text.replace('text-', 'bg-')}`} />
                                 {urg.label}
                               </span>
                             </div>
-                            <div className="px-4 py-3 space-y-2">
+                            
+                            <div className="px-5 md:px-6 py-5 space-y-5">
                               {sol.steps.map((step, j) => (
-                                <div key={j} className="flex items-start gap-3">
-                                  <span className="flex-shrink-0 w-5 h-5 rounded-full border border-primary/30 text-primary text-xs flex items-center justify-center font-mono mt-0.5">
-                                    {j + 1}
-                                  </span>
-                                  <p className="text-xs text-muted-foreground leading-relaxed">{step}</p>
+                                <div key={j} className="flex items-start gap-4">
+                                  <div className={`flex-shrink-0 w-6 h-6 rounded-full border flex items-center justify-center text-xs font-mono font-bold mt-0.5 ${step.type === 'decision' ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-primary/10 border-primary/30 text-primary'}`}>
+                                    {step.type === 'decision' ? '?' : j + 1}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm text-muted-foreground leading-relaxed">
+                                      {renderTextWithBoldPaths(step.text)}
+                                    </p>
+                                    {step.code && <CopyableCode code={step.code} />}
+                                  </div>
                                 </div>
                               ))}
+                              
+                              <FeedbackWidget messageId={msg.id} />
                             </div>
-                            {sol.relatedTip && (
-                              <div className="px-4 py-2.5 border-t border-border/30 bg-primary/3">
-                                <p className="text-xs text-primary/80 leading-relaxed flex items-start gap-2">
-                                  <Sparkles className="w-3 h-3 mt-0.5 shrink-0" />
-                                  {sol.relatedTip}
-                                </p>
-                              </div>
-                            )}
                           </div>
                         );
                       })}
-                      {msg.solutions && msg.solutions.length > 0 && (
-                        <div className="flex items-center gap-3 pt-1">
-                          <Link
-                            href="/health-test"
-                            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-                          >
-                            Run a full diagnostic <ChevronRight className="w-3 h-3" />
-                          </Link>
-                          <Link
-                            href="/risk-calculator"
-                            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            Check failure risk <ChevronRight className="w-3 h-3" />
-                          </Link>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -431,72 +452,57 @@ export default function Troubleshoot() {
 
               {isTyping && (
                 <div className="flex justify-start">
-                  <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-card border border-border/50 flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
-                    <span className="text-xs text-muted-foreground">Analyzing your issue…</span>
+                  <div className="px-5 py-4 rounded-2xl rounded-bl-md bg-card border border-border/50 flex items-center gap-3">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                    <span className="text-sm text-muted-foreground">Formulating exact diagnostic steps…</span>
                   </div>
                 </div>
               )}
             </div>
 
               {/* Input bar */}
-              <div className="border-t border-border/50 px-4 py-3 bg-card/60">
+              <div className="border-t border-border/50 px-4 md:px-6 py-4 bg-card/80">
                 <form
                   onSubmit={(e) => { e.preventDefault(); handleSubmit(input); }}
-                  className="flex items-center gap-3"
+                  className="flex items-center gap-3 relative"
                 >
                   <input
                     ref={inputRef}
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Describe your laptop problem…"
-                    className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                    placeholder="E.g., 'My NVMe wear level is extremely high'"
+                    className="flex-1 bg-background/50 border border-border/50 rounded-xl px-5 py-3.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 transition-colors"
                     disabled={isTyping}
                   />
-                  {messages.length > 0 && (
+                  
+                  <div className="flex items-center gap-2 absolute right-2 top-1/2 -translate-y-1/2">
+                    {messages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setMessages([]); setInput(""); }}
+                        className="p-2 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/30 transition-all"
+                        title="Clear conversation"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
-                      type="button"
-                      onClick={() => { setMessages([]); setInput(""); }}
-                      className="p-2 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/20 transition-all"
-                      title="Clear conversation"
+                      type="submit"
+                      disabled={!input.trim() || isTyping}
+                      className="p-2.5 rounded-lg bg-primary text-background hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-all glow-cyan mr-1"
                     >
-                      <RotateCcw className="w-4 h-4" />
+                      <Send className="w-4 h-4" />
                     </button>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={!input.trim() || isTyping}
-                    className="p-2.5 rounded-xl bg-primary text-background hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-all glow-cyan"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
+                  </div>
                 </form>
               </div>
             </div>
           </AnimateIn>
-
-          {/* Bottom quick issues (visible after conversation starts) */}
-          {messages.length > 0 && (
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {QUICK_ISSUES.map((q) => (
-                <button
-                  key={q.label}
-                  onClick={() => handleSubmit(q.query)}
-                  disabled={isTyping}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/40 text-xs text-muted-foreground hover:text-primary hover:border-primary/30 disabled:opacity-30 transition-all"
-                >
-                  <q.icon className="w-3 h-3" />
-                  {q.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <p className="text-xs text-muted-foreground/40 text-center mt-4 leading-relaxed">
-            This assistant uses a local knowledge base — no data is sent to any server. For hardware-level analysis, run the{" "}
-            <Link href="/health-test" className="text-primary/60 hover:text-primary transition-colors">Health Test</Link>.
-          </p>
         </div>
       </section>
     </div>

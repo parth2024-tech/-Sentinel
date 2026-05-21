@@ -501,7 +501,7 @@ function ExpandableFinding({ f, style, icon, troubleshootKey }: {
             </div>
           )}
           {troubleshootKey && (
-            <Link href={`/troubleshoot?topic=${troubleshootKey}`} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/10 transition-all">
+            <Link href={`/troubleshoot?topic=${troubleshootKey}&title=${encodeURIComponent(f.title)}`} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/10 transition-all">
               <ArrowRight className="w-3.5 h-3.5" /> Get step-by-step fix for this issue
             </Link>
           )}
