@@ -754,43 +754,70 @@ export default function HealthTest() {
                   <Activity className="w-4 h-4 text-accent" />
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-base font-semibold text-foreground">Step 4 — Habit audit</h2>
                     <span className="text-xs font-mono text-accent border border-accent/30 bg-accent/10 px-1.5 py-0.5 rounded">
                       {habitAnsweredCount}/{HABIT_QUESTIONS.length} answered
                     </span>
+                    {habitAnsweredCount > 0 && (
+                      <span className="text-xs font-mono text-primary border border-primary/30 bg-primary/10 px-1.5 py-0.5 rounded">
+                        Habit score: ~{Math.round((Object.values(habitAnswers).reduce((a: number, b: unknown) => a + (b as number), 0) / (HABIT_QUESTIONS.length * 10)) * 100)}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Your usage patterns account for 30% of your final score. Takes 30 seconds.
+                    Your usage patterns account for 30% of your final score. Hover <strong className="text-foreground">?</strong> on each question to see exactly how it impacts your score.
                   </p>
                 </div>
               </div>
 
               <div className="p-6 space-y-5">
-                {HABIT_QUESTIONS.map((q) => (
-                  <div key={q.id}>
-                    <p className="text-sm font-medium text-foreground mb-2">{q.text}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {q.options.map((opt) => {
-                        const selected = habitAnswers[q.id] === opt.value;
-                        return (
-                          <button
-                            key={opt.value}
-                            onClick={() => setHabitAnswers((prev) => ({ ...prev, [q.id]: opt.value }))}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                              selected
-                                ? "border-accent/60 bg-accent/15 text-accent"
-                                : "border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
-                            }`}
-                          >
-                            {selected && <span className="mr-1">✓</span>}
-                            {opt.label}
-                          </button>
-                        );
-                      })}
+                {HABIT_QUESTIONS.map((q) => {
+                  const TOOLTIPS: Record<string, string> = {
+                    surface: "Soft surfaces block bottom vents, raising CPU temp 8–15°C. Directly feeds your thermal score (25% of total).",
+                    charging: "Keeping batteries at 100% accelerates lithium-ion degradation. Charging above 80% shortens lifespan measurably.",
+                    shutdown: "Extended uptime lets memory leaks and driver faults accumulate — all factors in system stability scoring.",
+                    cleaning: "Dust buildup cuts thermal efficiency by 10–20°C. The single biggest controllable factor in your thermal score.",
+                    storage_habit: "SSDs need 10–15% free space for wear-leveling. Below 10% directly lowers your storage score.",
+                    updates: "Outdated drivers are the #1 cause of thermal throttling and GPU crashes — factored into overall stability.",
+                    heat: "Self-reported heat validates thermal telemetry and adjusts how urgently we weight thermal findings.",
+                    backup: "Backup frequency affects how critically we weight storage failure risk in your findings.",
+                  };
+                  return (
+                    <div key={q.id} className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        <p className="text-sm font-medium text-foreground">{q.text}</p>
+                        {TOOLTIPS[q.id] && (
+                          <div className="relative group shrink-0 mt-0.5">
+                            <button className="w-4 h-4 rounded-full border border-muted-foreground/30 text-muted-foreground/50 text-[10px] flex items-center justify-center hover:border-primary/50 hover:text-primary transition-colors">?</button>
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-60 bg-card border border-border/80 rounded-lg px-3 py-2.5 text-xs text-muted-foreground leading-relaxed opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-xl">
+                              {TOOLTIPS[q.id]}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {q.options.map((opt) => {
+                          const selected = habitAnswers[q.id] === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              onClick={() => setHabitAnswers((prev) => ({ ...prev, [q.id]: opt.value }))}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                                selected
+                                  ? "border-accent/60 bg-accent/15 text-accent"
+                                  : "border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
+                              }`}
+                            >
+                              {selected && <span className="mr-1">✓</span>}
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {/* Generate button */}
                 <div className="pt-2 flex flex-col gap-4">

@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import { motion } from "framer-motion";
 import { Link, useParams, useLocation } from "wouter";
 import {
   ArrowRight, Shield, AlertTriangle, Info, Lock,
@@ -56,17 +57,35 @@ const URGENCY_STYLES = {
 };
 
 function ScoreRing({ score }: { score: number }) {
-  const r = 40;
+  const r = 54;
   const circ = 2 * Math.PI * r;
-  const dash = (score / 100) * circ;
   const color = score >= 80 ? "#22d3ee" : score >= 60 ? "#f59e0b" : "#f87171";
+  const [displayed, setDisplayed] = React.useState(0);
+  React.useEffect(() => {
+    const duration = 800;
+    const startTime = performance.now();
+    const step = (now: number) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayed(Math.round(eased * score));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [score]);
+  const dash = (displayed / 100) * circ;
   return (
-    <svg width="100" height="100" viewBox="0 0 100 100" className="rotate-[-90deg]">
-      <circle cx="50" cy="50" r={r} fill="none" stroke="currentColor" strokeWidth="8" className="text-border/30" />
-      <circle cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="8"
-        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
-        style={{ transition: "stroke-dasharray 1s ease" }} />
-    </svg>
+    <div className="relative" style={{ width: 140, height: 140 }}>
+      <svg width="140" height="140" viewBox="0 0 140 140" className="rotate-[-90deg] absolute inset-0">
+        <circle cx="70" cy="70" r={r} fill="none" stroke="currentColor" strokeWidth="10" className="text-border/20" />
+        <circle cx="70" cy="70" r={r} fill="none" stroke={color} strokeWidth="10"
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+          style={{ filter: `drop-shadow(0 0 8px ${color})` }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="text-4xl font-bold tabular-nums" style={{ color }}>{displayed}</div>
+        <div className="text-xs text-muted-foreground">/100</div>
+      </div>
+    </div>
   );
 }
 
@@ -304,6 +323,100 @@ function ClaimPanel({ id }: { id: string }) {
   );
 }
 
+function ExpandableFinding({ f, style, icon, troubleshootKey }: {
+  f: any; style: any; icon: React.ReactNode; troubleshootKey: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`surface-card rounded-xl border-l-2 ${style.border} overflow-hidden`}>
+      <button onClick={() => setOpen(o => !o)} className="w-full p-5 text-left flex items-start gap-3 hover:bg-muted/5 transition-colors">
+        {icon}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className={`text-xs font-mono px-1.5 py-0.5 rounded border uppercase ${style.badge} shrink-0`}>{f.urgency}</span>
+            <span className="text-xs font-mono text-muted-foreground/50">{f.component}</span>
+          </div>
+          <div className="text-sm font-semibold text-foreground">{f.title}</div>
+          <p className="text-sm text-muted-foreground leading-relaxed mt-1">{f.body}</p>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground/40 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="px-5 pb-5 space-y-3 border-t border-border/30 pt-4">
+          {f.oemContext && (
+            <div className="rounded-lg bg-primary/5 border border-primary/15 px-4 py-3">
+              <p className="text-xs font-mono text-primary/60 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                <Shield className="w-3 h-3" /> Why OEM tools miss this
+              </p>
+              <p className="text-xs text-muted-foreground/80 leading-relaxed">{f.oemContext}</p>
+              {f.caseStudyId && (
+                <Link href={`/oem-failures#${f.caseStudyId}`} className="mt-2 inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors">
+                  See the real-world case study →
+                </Link>
+              )}
+            </div>
+          )}
+          {troubleshootKey && (
+            <Link href={`/troubleshoot?topic=${troubleshootKey}`} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/10 transition-all">
+              <ArrowRight className="w-3.5 h-3.5" /> Get step-by-step fix for this issue
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReproducibilityPanel({ result, combinedScoreVal }: { result: ReportResult; combinedScoreVal: number | null }) {
+  const [open, setOpen] = useState(false);
+  const weights: Record<string, number> = { Battery: 30, Thermals: 25, Storage: 25, Memory: 10, CPU: 10 };
+  return (
+    <div className="surface-card rounded-xl overflow-hidden border border-primary/20">
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/5 transition-colors text-left">
+        <div className="flex items-center gap-3">
+          <Info className="w-4 h-4 text-primary/60" />
+          <span className="text-sm font-semibold text-foreground">How this score was calculated</span>
+          <span className="text-xs font-mono text-primary/50 border border-primary/20 bg-primary/5 px-2 py-0.5 rounded">v{result.algoVersion}</span>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground/40 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="border-t border-border/30 px-6 py-5 space-y-4">
+          <p className="text-xs text-muted-foreground leading-relaxed">Each component is scored 0–100 using a deterministic formula, then weighted. The same inputs always produce the same output.</p>
+          <div className="space-y-2">
+            {result.components.map(c => {
+              const w = weights[c.name] ?? 10;
+              const contribution = Math.round(c.score * w / 100);
+              return (
+                <div key={c.name} className="rounded-lg bg-background/60 border border-border/40 px-4 py-3 font-mono text-xs">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-foreground font-semibold">{c.name}</span>
+                    <span className="text-muted-foreground">{c.score} × {w}% = <span className="text-primary font-bold">{contribution} pts</span></span>
+                  </div>
+                  <div className="text-muted-foreground/60">{c.detail}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="rounded-lg bg-primary/5 border border-primary/20 px-4 py-3 font-mono text-sm flex justify-between">
+            <span className="text-muted-foreground">Hardware score</span>
+            <span className="text-primary font-bold">{result.overall} / 100</span>
+          </div>
+          {combinedScoreVal !== null && (
+            <div className="rounded-lg bg-primary/8 border border-primary/30 px-4 py-3 font-mono text-sm flex justify-between">
+              <span className="text-muted-foreground">Combined (hardware 70% + habits 30%)</span>
+              <span className="text-primary font-bold">{combinedScoreVal} / 100</span>
+            </div>
+          )}
+          <Link href="/scoring" className="inline-flex items-center gap-1.5 text-xs text-primary/70 hover:text-primary transition-colors">
+            Read the full scoring methodology <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Report() {
@@ -408,6 +521,17 @@ export default function Report() {
 
   return (
     <div className="min-h-screen bg-background text-foreground report-printable">
+      {result?.dataQuality?.structuredWarnings && result.dataQuality.structuredWarnings.length > 0 && (
+        <div className="w-full border-b border-amber-500/40 bg-amber-500/10 px-6 py-3">
+          <div className="max-w-3xl mx-auto flex items-center gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <div>
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Data Collection Notes · </span>
+              <span className="text-xs text-amber-400/80">{result.dataQuality.structuredWarnings.map((w: any) => w.title).join(" · ")} — some telemetry was excluded from scoring.</span>
+            </div>
+          </div>
+        </div>
+      )}
       {loadedFrom === "local" && (
         <div className="w-full bg-amber-500 text-amber-950 px-6 py-4 flex items-center justify-center gap-3 shadow-md z-50 relative">
           <AlertTriangle className="w-5 h-5 shrink-0" />
@@ -572,34 +696,39 @@ export default function Report() {
             </AnimateIn>
           )}
 
-          {/* Component breakdown */}
-          <AnimateIn delay={0.05}>
-            <div className="surface-card rounded-2xl p-7">
-              <h2 className="text-sm font-mono text-muted-foreground/60 uppercase tracking-widest mb-5">Component breakdown</h2>
-              <div className="space-y-4">
-                {result.components.map((c) => {
-                  const s = STATUS_STYLES[c.status];
-                  return (
-                    <div key={c.name}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-foreground">{c.name}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded border ${s.badge} font-mono`}>{c.status}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-muted-foreground font-mono">{c.detail}</span>
-                          <span className="text-sm font-bold font-mono tabular-nums w-8 text-right">{c.score}</span>
-                        </div>
+          {/* Component breakdown — staggered animated */}
+          <div className="surface-card rounded-2xl p-7">
+            <h2 className="text-sm font-mono text-muted-foreground/60 uppercase tracking-widest mb-6">Component breakdown</h2>
+            <div className="space-y-6">
+              {result.components.map((c, idx) => {
+                const s = STATUS_STYLES[c.status];
+                const INTERP: Record<string, string> = {
+                  Battery: c.score >= 80 ? "Battery is healthy." : c.score >= 60 ? `Your battery retains ${c.score}% effective capacity — adequate but declining.` : `Battery severely degraded at ${c.score}% — plan replacement soon.`,
+                  Thermals: c.score >= 80 ? "Cooling system is performing well." : c.score >= 60 ? "Temperatures are elevated — consider cleaning vents." : "Critical heat levels — thermal paste may need replacement.",
+                  Storage: c.score >= 80 ? "Drive health and free space are in good condition." : c.score >= 60 ? "Storage showing wear — monitor closely." : "Critical drive wear or low space — back up now.",
+                  Memory: c.score >= 80 ? "Memory usage is healthy." : c.score >= 60 ? "Memory usage moderately high." : "System under memory pressure — expect slowdowns.",
+                  CPU: c.score >= 80 ? "CPU load is healthy with no throttling." : c.score >= 60 ? "Some CPU throttling detected." : "Significant throttling is impacting performance.",
+                };
+                const scoreColor = c.score >= 80 ? "#22d3ee" : c.score >= 60 ? "#f59e0b" : "#f87171";
+                return (
+                  <motion.div key={c.name} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + idx * 0.15, duration: 0.4 }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">{c.name}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded border ${s.badge} font-mono`}>{c.status}</span>
                       </div>
-                      <div className="h-1.5 bg-border/30 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${s.bar} transition-all duration-700`} style={{ width: `${c.score}%` }} />
-                      </div>
+                      <span className="text-lg font-bold font-mono tabular-nums" style={{ color: scoreColor }}>{c.score}</span>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="h-2 bg-border/20 rounded-full overflow-hidden mb-2">
+                      <motion.div className={`h-full rounded-full ${s.bar}`} initial={{ width: 0 }} animate={{ width: `${c.score}%` }} transition={{ delay: 0.2 + idx * 0.15, duration: 0.8, ease: "easeOut" }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{INTERP[c.name] ?? c.detail}</p>
+                    <p className="text-xs text-muted-foreground/40 font-mono mt-0.5">{c.detail}</p>
+                  </motion.div>
+                );
+              })}
             </div>
-          </AnimateIn>
+          </div>
 
           {/* ── Health Forecast Timeline ────────────────────────────────────── */}
           {result.predictions && result.predictions.length > 0 && (
@@ -672,41 +801,17 @@ export default function Report() {
             </AnimateIn>
           )}
 
-          {/* Public findings */}
+          {/* Public findings — expandable */}
           {publicFindings.length > 0 && (
             <AnimateIn delay={0.07}>
               <div className="space-y-3">
                 <h2 className="text-sm font-mono text-muted-foreground/60 uppercase tracking-widest">Findings</h2>
                 {publicFindings.map((f, i) => {
                   const style = URGENCY_STYLES[f.urgency];
+                  const dot = f.urgency === "critical" ? "bg-red-400" : f.urgency === "warning" ? "bg-amber-400" : "bg-cyan-400";
+                  const tk: Record<string, string> = { Battery: "battery", Thermals: "thermal", Storage: "storage", Memory: "memory", CPU: "cpu" };
                   return (
-                    <div key={i} className={`surface-card rounded-xl p-5 border-l-2 ${style.border}`}>
-                      <div className="flex items-start gap-3 mb-2">
-                        <span className={`text-xs font-mono px-1.5 py-0.5 rounded border uppercase ${style.badge} shrink-0 mt-0.5`}>{f.urgency}</span>
-                        <div>
-                          <div className="text-xs font-mono text-muted-foreground/50 mb-0.5">{f.component}</div>
-                          <div className="text-sm font-semibold text-foreground">{f.title}</div>
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{f.body}</p>
-                      {f.oemContext && (
-                        <div className="mt-3 rounded-lg bg-primary/5 border border-primary/15 px-4 py-3">
-                          <p className="text-xs font-mono text-primary/60 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                            <Shield className="w-3 h-3" />
-                            Why OEM tools miss this
-                          </p>
-                          <p className="text-xs text-muted-foreground/80 leading-relaxed">{f.oemContext}</p>
-                          {f.caseStudyId && (
-                            <Link
-                              href={`/oem-failures#${f.caseStudyId}`}
-                              className="mt-2 inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors"
-                            >
-                              See the real-world case study →
-                            </Link>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    <ExpandableFinding key={i} f={f} style={style} icon={<span className={`w-2 h-2 rounded-full ${dot} shrink-0 mt-2`} />} troubleshootKey={tk[f.component] ?? ""} />
                   );
                 })}
               </div>
@@ -743,6 +848,11 @@ export default function Report() {
               </div>
             </AnimateIn>
           )}
+
+          {/* Score Reproducibility Panel */}
+          <AnimateIn delay={0.075}>
+            <ReproducibilityPanel result={result} combinedScoreVal={combinedScoreVal} />
+          </AnimateIn>
 
           {/* Claim panel (only shown when user owns the report) */}
           <AnimateIn delay={0.06}>
