@@ -33,18 +33,29 @@ type Props = {
 export default function DownloadButton({ slug, label, recommended, preload = true }: Props) {
   const [state, setState] = useState<FetchState>({ phase: "idle" });
 
+  function cleanErrorMessage(msg?: string): string {
+    if (!msg) return "Could not reach download server. Check that the API is running.";
+    const normalized = msg.toLowerCase();
+    if (
+      normalized.includes("failed to fetch") ||
+      normalized.includes("network error") ||
+      normalized.includes("download unavailable") ||
+      normalized.includes("opaque")
+    ) {
+      return "Could not reach download server. Check that the API is running.";
+    }
+    return msg;
+  }
+
   async function fetchRelease(): Promise<ReleaseInfo | null> {
     const res = await fetch(`/api/downloads/latest/${slug}`, { method: "GET", redirect: "manual" });
 
-    // Redirect = direct download URL from GitHub Releases
-    if (res.status >= 300 && res.status < 400) {
-      const location = res.headers.get("Location") ?? "";
-      // Extract version from URL if possible
-      const versionMatch = location.match(/v?(\d+\.\d+\.\d+)/);
+    // Opaque redirect (e.g. redirected to GitHub Releases)
+    if (res.type === "opaqueredirect" || res.status === 0) {
       return {
-        version: versionMatch?.[1] ?? "latest",
+        version: "latest",
         sizeBytes: 0,
-        downloadUrl: location,
+        downloadUrl: `/api/downloads/latest/${slug}`,
       };
     }
 
@@ -88,7 +99,7 @@ export default function DownloadButton({ slug, label, recommended, preload = tru
       .catch((err: { message?: string; releasesUrl?: string }) => {
         setState({
           phase: "error",
-          message: err?.message ?? "Could not reach download server. Check that the API is running.",
+          message: cleanErrorMessage(err?.message),
           releasesUrl: err?.releasesUrl,
         });
       });
@@ -113,7 +124,7 @@ export default function DownloadButton({ slug, label, recommended, preload = tru
         }
       } catch (err: unknown) {
         const e = err as { message?: string; releasesUrl?: string };
-        setState({ phase: "error", message: e?.message ?? "Network error.", releasesUrl: e?.releasesUrl });
+        setState({ phase: "error", message: cleanErrorMessage(e?.message), releasesUrl: e?.releasesUrl });
       }
     }
   }

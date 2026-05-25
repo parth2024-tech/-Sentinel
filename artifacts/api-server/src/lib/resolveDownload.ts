@@ -20,7 +20,14 @@ export type DownloadResolution =
 
 function repoRootFromModule(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  // dist/lib or src/lib → artifacts/api-server → repo root
+  // Robustly walk up to find the workspace root containing pnpm-workspace.yaml
+  let current = here;
+  while (current !== path.dirname(current)) {
+    if (fs.existsSync(path.join(current, "pnpm-workspace.yaml"))) {
+      return current;
+    }
+    current = path.dirname(current);
+  }
   return path.resolve(here, "..", "..", "..", "..");
 }
 

@@ -55,6 +55,7 @@ router.get("/latest/:binary", async (req: Request, res: Response) => {
 
     if (resolved.kind === "file") {
       res.setHeader("X-Sentinel-Download-Source", resolved.source);
+      res.setHeader("X-Sentinel-Version", "1.0.0");
       res.download(resolved.filePath, resolved.filename);
       return;
     }

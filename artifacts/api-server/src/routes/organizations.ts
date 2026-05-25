@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, organizationsTable, usersTable } from "@workspace/db";
-import { CreateOrganizationRequestBody, CreateStripeCheckoutSessionBody } from "@workspace/api-zod";
+import { CreateOrganizationBody, CreateStripeCheckoutSessionBody } from "@workspace/api-zod";
 import { eq } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
@@ -9,7 +9,7 @@ const router = Router();
 // Minimal implementation, in a real SaaS you would extract user ID from auth middleware
 // For this phase, we assume basic org creation
 router.post("/", async (req, res) => {
-  const parsed = CreateOrganizationRequestBody.safeParse(req.body);
+  const parsed = CreateOrganizationBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(422).json({ error: "Validation failed", details: parsed.error.message });
     return;
