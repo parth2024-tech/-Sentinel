@@ -35,7 +35,7 @@ Scoring is fully deterministic and publicly documented — no black-box AI, no m
 - **Backend API** — Express 5, `cookie-parser`, `cors`, `pino` logging
 - **Database & Architecture** — PostgreSQL via Drizzle ORM (Refactored for enterprise-grade Multi-Tenant B2B SaaS architecture, leveraging robust relational integrity)
 - **Validation** — Zod (`zod/v4`) + `drizzle-zod`
-- **Testing** — Vitest for highly accurate scoring engine validation
+- **Testing** — Vitest for highly accurate scoring engine validation, coordinated monorepo-wide using `vitest.workspace.ts` to orchestrate tests across all subprojects seamlessly
 - **Shared Libraries**:
   - `@workspace/report-engine` — Schema, scoring engine, habit scoring, forecast
   - `@workspace/db` — Drizzle schema + client
@@ -173,6 +173,8 @@ pnpm --filter @workspace/api-spec run codegen # Regenerate API clients
   - `organizations` (B2B Tenant groupings, fleet settings, subscription plans)
   - `organizationMembers` (Many-to-many RBAC association linking users to organizations)
   - `devices` & `reports` tables explicitly bind to `orgId` and `userId` foreign key targets for clean isolation boundaries.
+  - *API & Route Realignment*: The API services (`/api/my-reports`, `/api/devices`, and `/api/reports`) have been completely refactored to align with these relations. User queries and device claim validations resolve records using the `usersTable` and secure foreign key targets rather than insecure flat email checks, and paired local agents automatically bind report submissions using tenant-level `orgId` resolution.
+- **Robust Vite Environment Defaults** — Pre-configured Vite settings inside all frontend projects (`sentinel-site`, `novasentinel`, and `mockup-sandbox`) supply sensible default fallbacks for `PORT` (defaulting to `3000`) and `BASE_PATH` (defaulting to `/`). This prevents environment mismatch compilation failures during automated testing or local monorepo builds.
 - **Deterministic scoring** — No ML, no randomness. `ALGORITHM_VERSION` is incremented whenever formulas change; old reports retain their original version stamp.
 - **Server-side trust** — `generateReport` runs exclusively on the API server. Client input is untreated; only pre-validated for fast UI feedback.
 - **API Specification & Codegen** — The API contract is defined in `@workspace/api-spec` using OpenAPI. Zod schemas and React hooks are automatically generated to ensure type safety across the network boundary.
