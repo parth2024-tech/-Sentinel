@@ -4,87 +4,8 @@ import { Download, ArrowRight, Cpu, Battery, HardDrive, Thermometer, Wifi, Alert
 import WaitlistForm, { WaitlistCount } from "@/components/WaitlistForm";
 import HealthFeed from "@/components/HealthFeed";
 import AnimateIn, { StaggerContainer, StaggerItem } from "@/components/AnimateIn";
-
-function HeroSideBySide() {
-  return (
-    <div className="flex flex-col lg:flex-row gap-8 w-full max-w-5xl mx-auto mt-16 items-stretch relative">
-      {/* OEM Tool (Dell SupportAssist) */}
-      <motion.div 
-        initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
-        className="flex-1 rounded-2xl border border-border/60 bg-card/40 p-8 flex flex-col items-center justify-center relative overflow-hidden backdrop-blur-sm"
-      >
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-blue-600" />
-        <div className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-8 w-full text-left opacity-60">OEM Diagnostic</div>
-        <div className="w-24 h-24 rounded-full bg-green-500/10 border-4 border-green-500/20 flex items-center justify-center mb-6 shadow-[0_0_40px_-10px_rgba(34,197,94,0.3)]">
-          <CheckCircle className="w-12 h-12 text-green-500" />
-        </div>
-        <h3 className="text-2xl font-semibold text-foreground mb-2">Your PC is healthy</h3>
-        <p className="text-sm text-muted-foreground text-center">No hardware issues detected.</p>
-        <div className="w-full mt-8 space-y-3 opacity-70">
-          <div className="flex justify-between text-sm py-3 border-b border-border/30">
-            <span className="text-muted-foreground">Battery</span>
-            <span className="text-green-400 font-medium">Passed</span>
-          </div>
-          <div className="flex justify-between text-sm py-3 border-b border-border/30">
-            <span className="text-muted-foreground">Storage</span>
-            <span className="text-green-400 font-medium">Passed</span>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* VS Badge */}
-      <div className="hidden lg:flex items-center justify-center absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-        <div className="w-12 h-12 rounded-full bg-background border border-border/80 flex items-center justify-center text-sm font-bold text-muted-foreground shadow-2xl">
-          VS
-        </div>
-      </div>
-
-      {/* Sentinel Tool */}
-      <motion.div 
-        initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.5 }}
-        className="flex-1 rounded-2xl border border-primary/40 bg-primary/5 p-8 flex flex-col relative overflow-hidden shadow-[0_0_50px_-15px_rgba(34,211,238,0.25)] backdrop-blur-sm"
-      >
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-accent" />
-        <div className="text-xs text-primary font-mono uppercase tracking-widest mb-8 w-full text-left">Sentinel Telemetry</div>
-        
-        <div className="space-y-8 w-full flex-1 flex flex-col justify-center">
-          {/* Animated Component Bar */}
-          <div>
-            <div className="flex justify-between text-base mb-2.5">
-              <span className="font-semibold text-foreground flex items-center gap-2"><Battery className="w-4 h-4 text-red-400"/> Battery Wear</span>
-              <span className="text-red-400 font-mono font-bold">23% Capacity</span>
-            </div>
-            <div className="w-full h-3 rounded-full bg-background/50 border border-border/60 overflow-hidden shadow-inner">
-              <motion.div 
-                initial={{ width: "100%" }} animate={{ width: "23%" }} transition={{ duration: 1.5, delay: 1, ease: "easeOut" }}
-                className="h-full bg-red-400 glow-red"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground/80 mt-3 leading-relaxed">
-              412 cycles. Expected 78%, actual 23%. OEM tools hide cycle counts and fail to adjust degradation baselines.
-            </p>
-          </div>
-
-          <div>
-            <div className="flex justify-between text-base mb-2.5">
-              <span className="font-semibold text-foreground flex items-center gap-2"><HardDrive className="w-4 h-4 text-amber-400"/> NVMe Endurance</span>
-              <span className="text-amber-400 font-mono font-bold">61% Health</span>
-            </div>
-            <div className="w-full h-3 rounded-full bg-background/50 border border-border/60 overflow-hidden shadow-inner">
-              <motion.div 
-                initial={{ width: "100%" }} animate={{ width: "61%" }} transition={{ duration: 1.5, delay: 1.2, ease: "easeOut" }}
-                className="h-full bg-amber-400"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground/80 mt-3 leading-relaxed">
-              OEM tools report "Passed" until the drive hits 0%. Sentinel tracks exact linear endurance consumption.
-            </p>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
+import ParticleBackground from "@/components/ParticleBackground";
+import HeroIllustration from "@/components/HeroIllustration";
 
 const differentiators = [
   {
@@ -120,43 +41,60 @@ export default function Home() {
     <div className="flex flex-col">
       {/* Hero */}
       <section className="relative pt-24 pb-20 overflow-hidden px-6 text-center flex flex-col items-center min-h-[92vh] justify-center">
-        {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/5 pointer-events-none" />
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/3 blur-3xl pointer-events-none" />
+        {/* Background gradient & particles */}
+        <ParticleBackground />
+        
+        <div className="relative z-10 w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          
+          {/* Left Content Area */}
+          <div className="flex flex-col items-center lg:items-start text-center lg:text-left">
+            <AnimateIn delay={0} direction="left">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-mono font-medium border border-primary/30 text-primary bg-primary/10 mb-8 shadow-sm backdrop-blur-md">
+                <Activity className="w-3.5 h-3.5" /> REVEAL THE INVISIBLE
+              </div>
+            </AnimateIn>
+            
+            <AnimateIn delay={0.1} direction="left">
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05] relative">
+                <span className="block mb-2">OEM diagnostics</span>
+                <span className="block mb-2 text-muted-foreground/80 line-through decoration-red-500/50 decoration-[4px]">lie to you.</span>
+                <span className="gradient-text mt-4 block">Sentinel shows the truth.</span>
+              </h1>
+            </AnimateIn>
+            
+            <AnimateIn delay={0.2} direction="left">
+              <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-xl mt-8">
+                Stop relying on binary Pass/Fail checks that hide hardware degradation. 
+                Our deterministic telemetry exposes exactly what is failing—down to the individual cycle—before your system dies.
+              </p>
+            </AnimateIn>
+            
+            <AnimateIn delay={0.4} direction="left" className="mt-12 w-full">
+              <div className="flex flex-col sm:flex-row items-center lg:justify-start justify-center gap-4 w-full">
+                <Link href="/get-started" className="group relative flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl font-bold text-base text-background bg-primary hover:bg-primary/90 glow-cyan transition-all duration-300 shadow-xl overflow-hidden min-w-[220px]">
+                  <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                  <Download className="w-5 h-5 relative z-10" /> 
+                  <span className="relative z-10">Run Sentinel Free</span>
+                </Link>
+                <Link href="/oem-failures" className="group flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold text-base border border-border/60 text-foreground hover:border-primary/60 hover:text-primary transition-all duration-300 min-w-[220px] backdrop-blur-sm bg-background/30 hover:bg-background/60">
+                  See the OEM Evidence <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </div>
+            </AnimateIn>
+          </div>
 
-        <AnimateIn delay={0}>
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-mono font-medium border border-red-500/30 text-red-400 bg-red-500/10 mb-8 shadow-sm">
-            <AlertTriangle className="w-3.5 h-3.5" /> THE PASS/FAIL MYTH
+          {/* Right Illustration Area */}
+          <div className="relative w-full aspect-square lg:aspect-auto h-full min-h-[400px] lg:min-h-[600px] flex items-center justify-center">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+              className="w-full h-full absolute inset-0"
+            >
+              <HeroIllustration />
+            </motion.div>
           </div>
-        </AnimateIn>
-        
-        <AnimateIn delay={0.1}>
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05] max-w-5xl mx-auto">
-            OEM diagnostics lie to you.<br/>
-            <span className="gradient-text">Sentinel shows the truth.</span>
-          </h1>
-        </AnimateIn>
-        
-        <AnimateIn delay={0.2}>
-          <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto mt-6">
-            Stop relying on binary Pass/Fail checks from Dell, Lenovo, and HP that hide hardware degradation. Sentinel runs deterministic telemetry to expose exactly what is failing before your system dies.
-          </p>
-        </AnimateIn>
-        
-        <AnimateIn delay={0.3} className="w-full relative z-10">
-          <HeroSideBySide />
-        </AnimateIn>
-        
-        <AnimateIn delay={0.5} className="mt-16 relative z-10">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/get-started" className="flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl font-bold text-base text-background bg-primary hover:bg-primary/90 glow-cyan transition-all duration-200 shadow-xl min-w-[240px]">
-              <Download className="w-5 h-5" /> Run Sentinel Free
-            </Link>
-            <Link href="/oem-failures" className="flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold text-base border border-border/60 text-foreground hover:border-primary/60 hover:text-primary transition-all duration-200 min-w-[240px]">
-              See the OEM Evidence <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </AnimateIn>
+        </div>
       </section>
 
       {/* Radical Transparency & Scroll Animations Section */}
