@@ -19,23 +19,15 @@ public class UploaderService
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
-    public static async Task<(bool success, string? reportId, string? claimToken)> UploadPairCodeAsync(string pairCode, SentinelReport report)
+    public static async Task<(bool success, string? reportId, string? claimToken)> UploadDirectAsync(SentinelReport report)
     {
-        var rawJson = JsonSerializer.Serialize(report, JsonOptions);
-        
-        // Match the expected payload format: { pairCode, rawJson: <parsed object> }
-        var payload = new
-        {
-            pairCode = pairCode,
-            rawJson = report
-        };
-
+        var payload = new { rawJson = report };
         var jsonContent = JsonSerializer.Serialize(payload, JsonOptions);
 
         return await UploadWithRetryAsync(async () =>
         {
             var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync($"{BaseUrl}/api/pair/push", content);
+            var response = await _httpClient.PostAsync($"{BaseUrl}/api/reports", content);
             if (!response.IsSuccessStatusCode)
             {
                 throw new Exception($"Upload failed with status code {response.StatusCode}");
@@ -45,12 +37,11 @@ public class UploaderService
             using var doc = JsonDocument.Parse(responseString);
             var root = doc.RootElement;
 
-            bool ok = root.TryGetProperty("ok", out var okElement) && okElement.GetBoolean();
-            string? reportId = root.TryGetProperty("reportId", out var rId) ? rId.GetString() : null;
+            string? reportId = root.TryGetProperty("id", out var idElem) ? idElem.GetString() : null;
             string? claimToken = root.TryGetProperty("claimToken", out var cToken) ? cToken.GetString() : null;
 
-            return (ok, reportId, claimToken);
-        }, rawJson);
+            return (reportId != null, reportId, claimToken);
+        }, jsonContent);
     }
 
     private static async Task<(bool, string?, string?)> UploadWithRetryAsync(Func<Task<(bool, string?, string?)>> uploadAction, string rawJson)
@@ -84,38 +75,5 @@ public class UploaderService
         catch { }
 
         return (false, null, null);
-    }
-
-    public static async Task<(bool success, string? reportId)> UploadDeviceTokenAsync(string deviceToken, SentinelReport report)
-    {
-        var rawJson = JsonSerializer.Serialize(report, JsonOptions);
-        
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/api/reports");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", deviceToken);
-        request.Content = new StringContent(rawJson, Encoding.UTF8, "application/json");
-
-        var (success, reportId, _) = await UploadWithRetryAsync(async () =>
-        {
-            // Create a new request for each retry because request messages cannot be reused
-            using var retryRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/api/reports");
-            retryRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", deviceToken);
-            retryRequest.Content = new StringContent(rawJson, Encoding.UTF8, "application/json");
-
-            var response = await _httpClient.SendAsync(retryRequest);
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new Exception($"Upload failed with status code {response.StatusCode}");
-            }
-
-            var responseString = await response.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(responseString);
-            var root = doc.RootElement;
-
-            string? rId = root.TryGetProperty("id", out var idElem) ? idElem.GetString() : null;
-
-            return (true, rId, null);
-        }, rawJson);
-
-        return (success, reportId);
     }
 }

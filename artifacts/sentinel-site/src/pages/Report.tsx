@@ -576,6 +576,20 @@ export default function Report() {
     const id = params?.id;
     if (!id) { setError("No report ID provided."); return; }
 
+    // Intercept claim token from URL if present (Direct Upload flow)
+    const searchParams = new URLSearchParams(window.location.search);
+    const urlClaimToken = searchParams.get("claim");
+    if (urlClaimToken) {
+      try {
+        localStorage.setItem(`sentinel_claim_${id}`, urlClaimToken);
+        // Clean URL to prevent accidental sharing of the claim token
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      } catch (e) {
+        console.error("Failed to save claim token", e);
+      }
+    }
+
     fetch(`/api/reports/${id}`)
       .then(async (res) => {
         if (res.ok) {
