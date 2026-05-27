@@ -67,8 +67,19 @@ sentinel-signing.*
 
 # Secrets and logs
 .env
+**/.env*
+**/.env.local
 *.log
 
+# Root dev/scratch files
+test.js
+test.txt
+*.ps1
+.ase-project.json
+.replit
+.replitignore
+replit.md
 
 # Local Netlify folder
 .netlify
+**/.netlify

@@ -1,6 +1,11 @@
 {
-  "name": "workspace",
-  "version": "0.0.0",
+  "name": "@senitel/marketing-website-plan",
+  "version": "1.0.0",
+  "description": "Senitel Marketing Website and API Workspace",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=9"
+  },
   "license": "MIT",
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
@@ -8,6 +13,7 @@
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "test": "node -e \"const cp = require('child_process'); cp.spawnSync('pnpm', ['vitest', 'run'], { stdio: 'inherit' })\" --",
+    "format": "prettier --write .",
     "lint": "eslint .",
     "audit": "pnpm audit"
   },

@@ -6,7 +6,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', 'native/**', 'artifacts/mockup-sandbox/**', 'scripts/**', 'artifacts/sentinel-site/dist/**', 'artifacts/api-server/dist/**'],
+    ignores: ['**/dist/**', '**/node_modules/**', 'native/**', 'artifacts/mockup-sandbox/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
@@ -22,19 +22,10 @@ export default tseslint.config(
       },
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-var-requires': 'off',
-      '@typescript-eslint/no-namespace': 'off',
-      '@typescript-eslint/no-empty-object-type': 'off',
-      '@typescript-eslint/ban-types': 'off',
-      '@typescript-eslint/ban-ts-comment': 'off',
-      'prefer-const': 'off',
-      'no-empty': 'off',
-      'no-undef': 'off',
-      'react-hooks/rules-of-hooks': 'off',
-      'react-hooks/exhaustive-deps': 'off',
-      'react-hooks/purity': 'off'
-    },
+      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn'
+    }
   }
 );
