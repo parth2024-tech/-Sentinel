@@ -14,5 +14,12 @@
       "@/*": ["./src/*"]
     }
   },
-  "references": []
+  "references": [
+    {
+      "path": "../../lib/api-client-react"
+    },
+    {
+      "path": "../../lib/report-engine"
+    }
+  ]
 }
