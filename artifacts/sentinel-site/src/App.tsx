@@ -29,6 +29,7 @@ import Scoring from "@/pages/Scoring";
 import Changelog from "@/pages/Changelog";
 import SharedReport from "@/pages/SharedReport";
 import BillingSettings from "@/pages/BillingSettings";
+import LiveDashboard from "@/pages/LiveDashboard";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -92,6 +93,7 @@ function AnimatedRoutes() {
           <Route path="/scoring"         component={Scoring} />
           <Route path="/changelog"       component={Changelog} />
           <Route path="/billing"         component={BillingSettings} />
+          <Route path="/live"            component={LiveDashboard} />
           <Route                         component={NotFound} />
         </Switch>
       </motion.div>

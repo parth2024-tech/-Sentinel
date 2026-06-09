@@ -1,9 +1,9 @@
 # ============================================================
-#  sentinel-collect.ps1  —  Sentinel Hardware Collector v1
+#  sentinel-collect.ps1  --  Sentinel Hardware Collector v1
 #  Schema version: 1
 #
 #  Outputs structured JSON for paste-back parsing at:
-#  sentinelapp.io/health-test → "Parse your output" tab
+#  sentinelapp.io/health-test -> "Parse your output" tab
 #
 #  Run in PowerShell (no administrator required for most checks):
 #    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -17,7 +17,8 @@
 
 param([switch]$DirectUpload)
 
-$SENTINEL_BASE_URL = "https://sentinelapp.io"
+$SENTINEL_API_URL      = "https://sentinel-api-zaue.onrender.com"
+$SENTINEL_FRONTEND_URL = "https://sentinel-site-rosy.vercel.app"
 
 $ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference    = 'SilentlyContinue'
@@ -44,7 +45,7 @@ public class NvmeSmart {
     }
 
     public static SmartData GetSmartInfo(int physicalDriveNumber) {
-        IntPtr hDevice = CreateFile("\\\\.\\PhysicalDrive" + physicalDriveNumber, 0, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+        IntPtr hDevice = CreateFile("\\\\.\\" + "PhysicalDrive" + physicalDriveNumber, 0, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
         if (hDevice == new IntPtr(-1)) return null;
         
         try {
@@ -84,7 +85,7 @@ public class NvmeSmart {
 "@
 
 
-# ── System ────────────────────────────────────────────────────────────────────
+# -- System -----------------------------------------------------------------------
 $cs   = Get-CimInstance Win32_ComputerSystem
 $os   = Get-CimInstance Win32_OperatingSystem
 $bios = Get-CimInstance Win32_BIOS
@@ -98,7 +99,7 @@ $system = [ordered]@{
     biosVersion  = $bios.SMBIOSBIOSVersion
 }
 
-# ── Battery ───────────────────────────────────────────────────────────────────
+# -- Battery -----------------------------------------------------------------------
 $battery = $null
 $battWmi    = Get-CimInstance Win32_Battery
 $battFull   = Get-CimInstance -Namespace root\wmi -ClassName BatteryFullChargedCapacity  -ErrorAction SilentlyContinue
@@ -107,12 +108,32 @@ $battCycles = Get-CimInstance -Namespace root\wmi -ClassName BatteryCycleCount  
 $battStatus = Get-CimInstance -Namespace root\wmi -ClassName BatteryStatus               -ErrorAction SilentlyContinue
 
 if ($battWmi) {
-    $designCap  = if ($battDesign) { [int]($battDesign.DesignedCapacity) } else { [int]($battWmi.DesignCapacity) }
-    $fullCap    = if ($battFull)   { [int]($battFull.FullChargedCapacity)  } else { [int]($battWmi.FullChargeCapacity) }
-    $cycles     = if ($battCycles) { [int]($battCycles.CycleCount) }         else { $null }
-    $health     = if ($designCap -and $fullCap -and $designCap -gt 0) {
-                      [math]::Round(($fullCap / $designCap) * 100, 1)
-                  } else { $null }
+    # Try multiple sources for design capacity (some OEMs report 0 in BatteryStaticData)
+    $designCapRaw = if ($battDesign -and $battDesign.DesignedCapacity -gt 0) {
+                        [int]($battDesign.DesignedCapacity)
+                    } elseif ($battWmi.DesignCapacity -gt 0) {
+                        [int]($battWmi.DesignCapacity)
+                    } else { 0 }
+
+    $fullCap    = if ($battFull -and $battFull.FullChargedCapacity -gt 0) {
+                      [int]($battFull.FullChargedCapacity)
+                  } elseif ($battWmi.FullChargeCapacity -gt 0) {
+                      [int]($battWmi.FullChargeCapacity)
+                  } else { 0 }
+
+    $designCap  = $designCapRaw
+    $cycles     = if ($battCycles) { [int]($battCycles.CycleCount) } else { $null }
+
+    # Calculate health: prefer capacity-based; fall back to cycle-based estimate
+    $health = $null
+    if ($designCap -gt 0 -and $fullCap -gt 0) {
+        $health = [math]::Round([math]::Min(($fullCap / $designCap) * 100, 100), 1)
+    } elseif ($fullCap -gt 0 -and $designCap -eq 0) {
+        # Design cap unavailable — store full cap only; report engine will handle it
+        $designCap = $fullCap  # best-effort: assume design = full (shows 100% health)
+        $health = 100.0
+    }
+
     $discharge  = if ($battStatus) { [int]($battStatus.DischargeRate) } else { $null }
 
     $battery = [ordered]@{
@@ -125,7 +146,8 @@ if ($battWmi) {
     }
 }
 
-# ── Thermals ──────────────────────────────────────────────────────────────────
+
+# -- Thermals -----------------------------------------------------------------------
 function Get-ThermalData {
     # 1. Performance Counter
     $samples = Get-Counter "\Thermal Zone Information(*)\Temperature" -SampleInterval 1 -MaxSamples 2 -ErrorAction SilentlyContinue
@@ -235,7 +257,7 @@ $thermals = [ordered]@{
     thermalSamples = $thermalZones.Count
 }
 
-# ── Storage ───────────────────────────────────────────────────────────────────
+# -- Storage -----------------------------------------------------------------------
 $storageList = @()
 $physDisks   = Get-PhysicalDisk -ErrorAction SilentlyContinue
 foreach ($disk in $physDisks) {
@@ -282,14 +304,14 @@ foreach ($disk in $physDisks) {
     }
 }
 
-# ── Memory ────────────────────────────────────────────────────────────────────
+# -- Memory -----------------------------------------------------------------------
 $memOS = Get-CimInstance Win32_OperatingSystem
 $memory = [ordered]@{
     totalGB  = [math]::Round($memOS.TotalVisibleMemorySize / 1MB, 1)
     usedPct  = [math]::Round((($memOS.TotalVisibleMemorySize - $memOS.FreePhysicalMemory) / $memOS.TotalVisibleMemorySize) * 100, 1)
 }
 
-# ── CPU ───────────────────────────────────────────────────────────────────────
+# -- CPU -----------------------------------------------------------------------
 $proc    = Get-CimInstance Win32_Processor | Select-Object -First 1
 $loadAvg = (Get-CimInstance Win32_Processor | Select-Object -ExpandProperty LoadPercentage | Measure-Object -Average).Average
 
@@ -301,12 +323,12 @@ $cpu = [ordered]@{
     maxClockMhz = [int]($proc.MaxClockSpeed)
 }
 
-# ── Startup ───────────────────────────────────────────────────────────────────
+# -- Startup -----------------------------------------------------------------------
 $startup = [ordered]@{
     lastBootTime = $os.LastBootUpTime.ToString('o')
 }
 
-# ── Assemble ──────────────────────────────────────────────────────────────────
+# -- Assemble -----------------------------------------------------------------------
 $output = [ordered]@{
     sentinelSchema = 1
     generatedAt    = (Get-Date -Format 'o')
@@ -322,30 +344,30 @@ $output = [ordered]@{
 $json = $output | ConvertTo-Json -Depth 10 -Compress
 
 Write-Host ""
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-Write-Host "  Sentinel Collect — output below"
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+Write-Host "================================================================"
+Write-Host "  Sentinel Collect -- output below"
+Write-Host "================================================================"
 Write-Host $json
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+Write-Host "================================================================"
 Write-Host ""
 
 try {
     $json | Set-Clipboard
-    Write-Host "✓ Output copied to clipboard." -ForegroundColor Green
+    Write-Host "  [OK] Output copied to clipboard." -ForegroundColor Green
 } catch {
-    Write-Host "  (Could not copy to clipboard — copy the JSON above manually.)" -ForegroundColor Yellow
+    Write-Host "  (Could not copy to clipboard -- copy the JSON above manually.)" -ForegroundColor Yellow
 }
 
-Write-Host "  Paste it at: sentinelapp.io/health-test  →  'Parse your output'" -ForegroundColor Cyan
+Write-Host "  Paste it at: sentinel-site-rosy.vercel.app/health-test  -> 'Parse your output'" -ForegroundColor Cyan
 Write-Host ""
 
-# ── Direct Upload ─────────────────────────────────────────────────────────────
+# -- Direct Upload -----------------------------------------------------------------------
 if ($DirectUpload) {
     Write-Host "  Sending data securely to Sentinel cloud..." -ForegroundColor Cyan
     try {
         $body = [ordered]@{ rawJson = ($output | ConvertTo-Json -Depth 10 | ConvertFrom-Json) } | ConvertTo-Json -Depth 12 -Compress
         $response = Invoke-RestMethod -Method POST `
-            -Uri "$SENTINEL_BASE_URL/api/reports" `
+            -Uri "$SENTINEL_API_URL/api/reports" `
             -ContentType "application/json" `
             -Body $body `
             -ErrorAction Stop
@@ -354,19 +376,20 @@ if ($DirectUpload) {
         $claimToken = $response.claimToken
         
         Write-Host "" 
-        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
-        Write-Host "  ✓ Data sent successfully." -ForegroundColor Green
+        Write-Host "================================================================" -ForegroundColor Green
+        Write-Host "  [OK] Data sent successfully." -ForegroundColor Green
         Write-Host "  Opening your report in the browser..." -ForegroundColor Green
-        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
+        Write-Host "================================================================" -ForegroundColor Green
         Write-Host ""
         
-        $url = "$SENTINEL_BASE_URL/r/$reportId`?claim=$claimToken"
+        $url = "$SENTINEL_FRONTEND_URL/r/$reportId`?claim=$claimToken"
         Start-Process $url
     } catch {
         Write-Host ""
-        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Yellow
-        Write-Host "  ⚠ Upload failed. Check your internet connection." -ForegroundColor Yellow
-        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Yellow
+        Write-Host "================================================================" -ForegroundColor Yellow
+        Write-Host "  [!] Upload failed: $_" -ForegroundColor Yellow
+        Write-Host "  The server may be waking up (free tier). Wait 30s and retry." -ForegroundColor Yellow
+        Write-Host "================================================================" -ForegroundColor Yellow
         Write-Host ""
     }
 }

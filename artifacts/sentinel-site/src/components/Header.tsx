@@ -7,10 +7,12 @@ const navLinks = [
   { href: "/scoring", label: "How Scoring Works" },
   { href: "/risk-calculator", label: "Risk Calculator" },
   { href: "/health-test", label: "Health Test" },
+  { href: "/live", label: "Live", pulse: true },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/troubleshoot", label: "Troubleshoot" },
   { href: "/pricing", label: "Pricing" },
 ];
+
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -41,11 +43,17 @@ export default function Header() {
             <Link
               key={link.href}
               href={link.href}
-              className={`text-sm font-medium transition-colors hover:text-primary ${
+              className={`text-sm font-medium transition-colors hover:text-primary flex items-center gap-1.5 ${
                 location === link.href ? "text-primary" : "text-muted-foreground"
               }`}
             >
               {link.label}
+              {link.pulse && (
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
+                </span>
+              )}
             </Link>
           ))}
         </nav>
@@ -79,11 +87,17 @@ export default function Header() {
               key={link.href}
               href={link.href}
               onClick={() => setMobileOpen(false)}
-              className={`text-sm font-medium transition-colors hover:text-primary ${
+              className={`text-sm font-medium transition-colors hover:text-primary flex items-center gap-1.5 ${
                 location === link.href ? "text-primary" : "text-muted-foreground"
               }`}
             >
               {link.label}
+              {link.pulse && (
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
+                </span>
+              )}
             </Link>
           ))}
           <Link
