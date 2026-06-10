@@ -7,6 +7,9 @@ out-tsc
 *.tsbuildinfo
 .expo
 .expo-shared
+# Exception: API server dist is pre-built and committed so Render can deploy without a build step
+!artifacts/api-server/dist
+!artifacts/api-server/dist/**
 
 # dependencies
 node_modules
