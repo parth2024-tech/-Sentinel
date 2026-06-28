@@ -1,6 +1,6 @@
 import type { SentinelReport } from "./schema";
 
-export const ALGORITHM_VERSION = 1;
+export const ALGORITHM_VERSION = 2;
 
 export interface ComponentScore {
   name: string;
@@ -102,6 +102,12 @@ function batteryScore(r: SentinelReport): ComponentScore | null {
   let score = health;
   const gap = expected - health;
   if (gap > 10) score -= Math.min(20, gap - 10);
+  // Discharge rate penalty — high discharge under idle speeds degradation
+  if (b.dischargeRateMw != null && b.dischargeRateMw < -8000) {
+    score -= 5; // unusual drain
+  } else if (b.dischargeRateMw != null && b.dischargeRateMw < -5000) {
+    score -= 2;
+  }
   score = clamp(score, 30, 100);
   let detail = `${health.toFixed(1)}% capacity`;
   if (cycles) detail += ` · ${cycles} cycles`;
@@ -109,6 +115,9 @@ function batteryScore(r: SentinelReport): ComponentScore | null {
     const full = Math.round(b.fullChargeCapacity / 1000);
     const design = Math.round(b.designCapacity / 1000);
     detail += ` · ${full}/${design} Wh`;
+  }
+  if (b.dischargeRateMw != null && b.dischargeRateMw < 0) {
+    detail += ` · ${(Math.abs(b.dischargeRateMw) / 1000).toFixed(1)}W draw`;
   }
   return { name: "Battery", score, status: scoreStatus(score), detail };
 }
@@ -125,8 +134,10 @@ function thermalScore(r: SentinelReport): ComponentScore | null {
     max > 80 ? 65 :
     max > 75 ? 80 : 100;
   const throttle = t.throttleEvents30min ?? 0;
-  if (throttle > 20) score -= 20;
-  else if (throttle > 10) score -= 10;
+  if (throttle > 30) score -= 30;
+  else if (throttle > 20) score -= 20;
+  else if (throttle > 10) score -= 12;
+  else if (throttle > 5) score -= 7;
   else if (throttle > 3) score -= 5;
   score = clamp(score);
   const detail = `${max.toFixed(1)}°C peak${throttle ? ` · ${throttle} throttle events` : ""}`;
@@ -194,9 +205,12 @@ function memoryScore(r: SentinelReport): ComponentScore | null {
     finalPenalty = basePenalty * swapMultiplier;
   }
   
-  const score = clamp(Math.round(100 - finalPenalty));
+  let score = clamp(Math.round(100 - finalPenalty));
+  // Low RAM penalty — very small RAM causes persistent high usage
+  if (m.totalGB <= 4) score = Math.min(score, 60);
+  else if (m.totalGB <= 6) score = Math.min(score, 75);
   
-  let detail = `${m.totalGB} GB · ${used.toFixed(0)}% used`;
+  let detail = `${m.totalGB} GB RAM · ${used.toFixed(0)}% used`;
   if (m.pageFaultsPerSec != null && m.pageFaultsPerSec > 0) {
     detail += ` · ${m.pageFaultsPerSec} pg/s`;
   }
@@ -323,6 +337,28 @@ function generateFindings(r: SentinelReport): Finding[] {
       urgency: s.wearLevelPct < 50 ? "critical" : "warning", pro: true });
   }
 
+  // Low total RAM finding
+  const m = r.memory;
+  if (m && m.totalGB <= 4) {
+    findings.push({
+      component: "Memory",
+      title: "4 GB RAM — insufficient for modern workloads",
+      body: `Your system has only ${m.totalGB} GB of RAM. Windows 11 alone can consume 3–4 GB at idle. With just ${m.totalGB} GB, every additional app causes heavy pagefile use, significantly slowing your system and accelerating SSD wear.`,
+      oemContext: "OEM diagnostics do not flag low total RAM — they only test whether installed RAM is functional. A 4 GB system will pass every OEM memory test while delivering a noticeably degraded experience.",
+      urgency: "warning",
+      pro: false,
+    });
+  } else if (m && m.totalGB <= 6 && m.usedPct > 70) {
+    findings.push({
+      component: "Memory",
+      title: `${m.totalGB} GB RAM under pressure`,
+      body: `With ${m.totalGB} GB RAM and ${m.usedPct.toFixed(0)}% utilisation, your system is frequently near its memory limit. Adding browser tabs or background apps will push it into pagefile territory.`,
+      oemContext: "OEM tools test RAM for hardware defects, not capacity sufficiency. They will pass a 6 GB system with 80% utilisation as 'Memory: OK'.",
+      urgency: "info",
+      pro: false,
+    });
+  }
+
   // ── OEM Case Study Findings ───────────────────────────────────────────
   // These fire on the exact failure patterns documented in the attached Dell,
   // Lenovo, and HP diagnostic scripts. Each caseStudyId links to the
@@ -424,6 +460,54 @@ function generateFindings(r: SentinelReport): Finding[] {
       urgency: "info", pro: false });
   }
 
+  // Startup list impact
+  const startupCount = (r.startupList ?? []).length;
+  if (startupCount > 15) {
+    findings.push({
+      component: "CPU",
+      title: `${startupCount} startup programs detected — impacting boot time`,
+      body: `Your system has ${startupCount} programs configured to launch at startup. Excessive startup items increase boot time, raise idle CPU usage, and reduce available RAM from the moment you log in.`,
+      oemContext: "OEM diagnostic tools do not audit startup programs. Task Manager's Startup tab shows them, but no OEM tool aggregates startup impact on system health scoring.",
+      urgency: startupCount > 25 ? "warning" : "info",
+      pro: false,
+    });
+  } else if (startupCount > 8) {
+    findings.push({
+      component: "CPU",
+      title: `${startupCount} startup programs — moderate boot impact`,
+      body: `${startupCount} startup programs detected. Consider reviewing which are essential to reduce boot time and idle resource consumption.`,
+      oemContext: "Startup program auditing is absent from all major OEM diagnostic tools.",
+      urgency: "info",
+      pro: false,
+    });
+  }
+
+  // Security finding
+  const sec = r.security;
+  if (sec) {
+    if (!sec.antivirusEnabled || !sec.realTimeProtection) {
+      findings.push({
+        component: "Security",
+        title: "Antivirus or real-time protection disabled",
+        body: `Sentinel detected that ${
+          !sec.antivirusEnabled ? "antivirus is not enabled" : "real-time protection is disabled"
+        }. This leaves your system exposed to malware that can cause data loss, file corruption, and hardware degradation through sustained high CPU loads.`,
+        oemContext: "OEM diagnostic tools do not audit security posture. Dell SupportAssist, Lenovo Vantage, and HP Support Assistant check for driver and BIOS updates — not whether your system is actively protected.",
+        urgency: "critical",
+        pro: false,
+      });
+    } else if (sec.firewallProfilesActive && !sec.firewallProfilesActive.toLowerCase().includes("private") && !sec.firewallProfilesActive.toLowerCase().includes("domain")) {
+      findings.push({
+        component: "Security",
+        title: "Firewall profile may be set to Public",
+        body: `Your active firewall profile appears to be Public. On a Public network profile, Windows blocks more incoming connections by default — but it is worth verifying you are not accidentally using a Public profile on a trusted home/office network, which can block file sharing and other features.`,
+        oemContext: "OEM tools do not audit Windows Firewall profile configuration.",
+        urgency: "info",
+        pro: false,
+      });
+    }
+  }
+
   return findings;
 }
 
@@ -448,13 +532,17 @@ function generatePredictions(r: SentinelReport): Prediction[] {
         insight: "Battery is in excellent condition. At current usage patterns, expect reliable performance for the next 1.5–2 years.",
       });
     } else if (health >= 75) {
-      const monthsLeft = Math.max(3, Math.round((health - 50) * 0.6));
+      const gap = expectedBatteryHealth(cycles) - health;
+      const baseMonths = Math.max(3, Math.round((health - 50) * 0.6));
+      const adjustedMonths = gap > 10 ? Math.max(2, baseMonths - Math.round(gap * 0.3)) : baseMonths;
       predictions.push({
         component: "Battery",
         currentValue: `${health.toFixed(1)}% capacity · ${cycles} cycles`,
-        projectedTimeline: `${monthsLeft}–${monthsLeft + 4} months before performance becomes unreliable`,
+        projectedTimeline: `${adjustedMonths}–${adjustedMonths + 4} months before performance becomes unreliable`,
         severity: "declining",
-        insight: `At current degradation rate, battery performance may become unstable within ${monthsLeft}–${monthsLeft + 4} months. Runtime per charge will decrease noticeably. Plan for replacement within this window.`,
+        insight: `At current degradation rate${
+          gap > 10 ? ` (${gap.toFixed(0)}pts below expected for ${cycles} cycles)` : ""
+        }, battery performance may become unstable within ${adjustedMonths}–${adjustedMonths + 4} months. Runtime per charge will decrease noticeably. Plan for replacement within this window.`,
       });
     } else if (health >= 50) {
       const monthsLeft = Math.max(1, Math.round((health - 40) * 0.4));
